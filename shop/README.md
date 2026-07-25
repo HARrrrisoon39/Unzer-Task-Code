@@ -52,24 +52,6 @@ The app registers `https://abc123.ngrok.io/api/webhooks/unzer` with Unzer automa
 
 ---
 
-## Run with PostgreSQL
-
-```bash
-cd shop
-cat > .env <<EOF
-UNZER_PRIVATE_KEY=s-priv-xxx
-UNZER_PUBLIC_KEY=s-pub-xxx
-UNZER_RETURN_URL_BASE=https://abc123.ngrok.io
-UNZER_WEBHOOK_URL=https://abc123.ngrok.io
-JWT_SECRET=a-long-random-secret-at-least-32-characters
-EOF
-
-./mvnw clean package -DskipTests
-docker compose up --build
-```
-
----
-
 ## End-to-End Flow (cURL)
 
 ```bash
