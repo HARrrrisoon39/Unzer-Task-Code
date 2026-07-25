@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: unzer-shop
+
+  # Default profile uses H2 for zero-setup local dev.
+  # Use --spring.profiles.active=postgres for PostgreSQL (requires Docker Compose).
+  datasource:
+    url: jdbc:h2:mem:shopdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+
+# Unzer configuration — set via environment variable: UNZER_PRIVATE_KEY and UNZER_PUBLIC_KEY
+# Never hardcode keys here. In production, load from AWS Secrets Manager.
+unzer:
+  private-key: ${UNZER_PRIVATE_KEY:s-priv-PLACEHOLDER_SET_ENV_VAR}
+  public-key: ${UNZER_PUBLIC_KEY:s-pub-PLACEHOLDER_SET_ENV_VAR}
+  return-url-base: ${UNZER_RETURN_URL_BASE:http://localhost:8080}
+  webhook-url: ${UNZER_WEBHOOK_URL:}  # Set to ngrok URL during local testing
+
+# JWT settings
+jwt:
+  secret: ${JWT_SECRET:local-dev-secret-change-in-production-must-be-32-chars-min}
+  expiry-ms: 86400000  # 24 hours
+
+logging:
+  level:
+    com.unzer.shop: DEBUG
+    com.unzer.payment: INFO

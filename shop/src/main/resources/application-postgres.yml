@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/shopdb
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:shop}
+    password: ${DB_PASSWORD:shop}
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  h2:
+    console:
+      enabled: false
