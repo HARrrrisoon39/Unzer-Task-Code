@@ -88,11 +88,19 @@ erDiagram
     string password_hash
     string role
   }
-  PRODUCT_VARIANT {
+  PRODUCT {
     uuid id PK
     string sku
     string name
+    boolean active
+  }
+  PRODUCT_VARIANT {
+    uuid id PK
+    uuid product_id FK
+    string sku
+    string name
     decimal price
+    string currency
   }
   INVENTORY {
     uuid variant_id PK
@@ -110,32 +118,75 @@ erDiagram
   }
   CART {
     uuid id PK
+    uuid customer_id FK
     string session_token
   }
   CART_ITEM {
     uuid id PK
     uuid cart_id FK
     uuid variant_id FK
+    string sku
+    string name
     int quantity
     decimal unit_price
+    string currency
   }
   SHOP_ORDER {
     uuid id PK
+    uuid customer_id FK
     string status
     decimal total_amount
+    string currency
+    string street
+    string city
+    string country
+    string zip
+  }
+  ORDER_LINE {
+    uuid id PK
+    uuid order_id FK
+    uuid variant_id FK
+    string sku
+    string name
+    int quantity
+    decimal unit_price
+  }
+  ORDER_STATUS_HISTORY {
+    uuid id PK
+    uuid order_id FK
+    string from_status
+    string to_status
+    string reason
+    timestamp occurred_at
   }
   PAYMENT {
     uuid id PK
     uuid order_id FK
     string unzer_payment_id
+    string unzer_type_id
     string method
     string status
+    decimal amount
+    string currency
     string idempotency_key
+    string redirect_url
+  }
+  PAYMENT_EVENT {
+    uuid id PK
+    string unzer_payment_id
+    string event_type
+    text raw_payload
+    string retrieve_url
+    boolean processed
   }
 
-  CART ||--o{ CART_ITEM : contains
+  CUSTOMER ||--o{ SHOP_ORDER : places
+  PRODUCT ||--o{ PRODUCT_VARIANT : has
   PRODUCT_VARIANT ||--|| INVENTORY : tracked_by
   INVENTORY ||--o{ RESERVATION : holds
+  CART ||--o{ CART_ITEM : contains
+  SHOP_ORDER ||--o{ ORDER_LINE : contains
+  SHOP_ORDER ||--o{ ORDER_STATUS_HISTORY : tracks
   SHOP_ORDER ||--|| PAYMENT : paid_via
   RESERVATION }o--|| SHOP_ORDER : linked_to
 ```
