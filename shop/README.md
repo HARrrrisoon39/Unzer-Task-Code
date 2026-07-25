@@ -209,15 +209,18 @@ shop/
 │   ├── payment/
 │   │   ├── gateway/      # PaymentGateway interface + Card/Wero/OpenBanking impls
 │   │   ├── model/        # Payment, PaymentEvent entities
-│   │   ├── service/      # PaymentService (idempotency, confirmSuccess/Failure)
+│   │   ├── service/      # CheckoutService (reserve+order), PaymentService (idempotency, confirm/fail/refund)
 │   │   └── controller/   # CheckoutController
 │   ├── customer/         # Auth (JWT), registration, login
-│   ├── webhook/          # UnzerWebhookController, WebhookRegistrar
+│   ├── webhook/          # UnzerWebhookController, WebhookRegistrar (auto-registers on startup)
 │   └── common/           # Security config, JWT filter, error handler
 ├── src/main/resources/
 │   ├── application.yml
 │   ├── application-postgres.yml
-│   ├── db/migration/V1__initial_schema.sql
+│   ├── db/migration/
+│   │   ├── V1__initial_schema.sql
+│   │   ├── V2__fix_cart_item_and_remove_outbox.sql
+│   │   └── V3__drop_address_table.sql
 │   └── static/checkout.html
 ├── Dockerfile
 └── docker-compose.yml
@@ -252,9 +255,12 @@ See [`architecture.md`](../architecture.md) for the full design.
 | JWT authentication | **Real** |
 | Stock release on payment failure | **Real** |
 | Idempotency (duplicate webhooks) | **Real** |
-| Email notifications | **Stubbed** (interface defined, no SES wiring) |
-| Full admin UI | **Stubbed** (endpoints exist, no frontend) |
-| Refund endpoint | **Real** (wired to Unzer cancelCharge) |
+| Refund endpoint | **Real** — wired to Unzer cancelCharge (Wero/OpenBanking only; Card needs capture step first) |
+| My orders endpoint (`GET /api/orders`) | **Real** — resolves customer from JWT email |
+| Email notifications | **Stubbed** — no SES wiring |
+| Full admin UI | **Stubbed** — endpoints exist, no frontend |
+| Product categories / search | **Stubbed** — catalog read model exists; category table not added |
+| Full order lifecycle (FULFILLING → SHIPPED → COMPLETED) | **Stubbed** — states defined in enum, no fulfilment service wired |
 
 ---
 
