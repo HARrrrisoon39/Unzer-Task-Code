@@ -25,42 +25,38 @@ One deployable Spring Boot app split into eight packages. Each package owns its 
 | `webhook` | Receives Unzer webhook events; `WebhookRegistrar` auto-registers the endpoint with Unzer on startup |
 | `common` | Security config, JWT filter, global error handling |
 
-### C4 Level 1 — System Context
+### Level 1 — System Context
 *(Who uses the system and what external systems does it talk to?)*
 
 ```mermaid
-C4Context
-  title C4 Level 1: System Context
+graph LR
+    Customer["👤 Customer\nBrowses and buys products"]
+    Shop["🖥️ Shop Backend\nCatalog, cart, orders, payments"]
+    Unzer["💳 Unzer\nPayment gateway"]
 
-  Person(customer, "Customer", "Browses and buys products")
-  System(shop, "Shop Backend", "Catalog, cart, orders, payments")
-  System_Ext(unzer, "Unzer", "Processes payments, sends webhook confirmations")
-
-  Rel(customer, shop, "Uses", "HTTPS")
-  Rel(shop, unzer, "Initiates payments", "HTTPS")
-  Rel(unzer, shop, "Confirms payments via webhook", "HTTPS POST")
+    Customer -->|"Uses (HTTPS)"| Shop
+    Shop -->|"Initiates payments (HTTPS)"| Unzer
+    Unzer -->|"Confirms via webhook (HTTPS POST)"| Shop
 ```
 
-### C4 Level 2 — Container Diagram
+### Level 2 — Container Diagram
 *(What deployable units make up the system and how do they communicate?)*
 
 ```mermaid
-C4Container
-  title C4 Level 2: Container Diagram
+graph TB
+    Customer["👤 Customer"]
 
-  Person(customer, "Customer")
+    subgraph shop["Shop System"]
+        API["Spring Boot API\n(Java 21)\nAll business logic:\ncatalog · cart · inventory\norder · payment · customer · webhook"]
+        DB["PostgreSQL\n(RDS / H2 dev)\nSingle shared database\none schema per module"]
+    end
 
-  System_Boundary(shop, "Shop") {
-    Container(api, "Spring Boot API", "Java 21", "All business logic — catalog, cart, inventory, order, payment, customer, webhook")
-    ContainerDb(db, "PostgreSQL", "RDS / H2 (dev)", "Single shared database; one schema per module")
-  }
+    Unzer["💳 Unzer\nPayment gateway"]
 
-  System_Ext(unzer, "Unzer", "Payment gateway")
-
-  Rel(customer, api, "REST API calls", "HTTPS")
-  Rel(api, db, "Reads / writes", "JDBC / JPA")
-  Rel(api, unzer, "Initiates authorize / charge", "HTTPS / Unzer Java SDK")
-  Rel(unzer, api, "Webhook events", "HTTPS POST /api/webhooks/unzer")
+    Customer -->|"REST API calls (HTTPS)"| API
+    API -->|"Reads / writes (JDBC / JPA)"| DB
+    API -->|"authorize / charge (Unzer Java SDK)"| Unzer
+    Unzer -->|"Webhook events (HTTPS POST /api/webhooks/unzer)"| API
 ```
 
 **Why a single database?** All modules live in one process and share one PostgreSQL instance. Separate databases per module would require distributed transactions (two-phase commit or sagas) to keep order + inventory + payment consistent — significant complexity for no real benefit at this scale. Modules reference each other only by foreign key ID, never by joining across schemas.
