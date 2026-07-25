@@ -25,9 +25,12 @@ One deployable Spring Boot app split into eight packages. Each package owns its 
 | `webhook` | Receives Unzer webhook events; `WebhookRegistrar` auto-registers the endpoint with Unzer on startup |
 | `common` | Security config, JWT filter, global error handling |
 
+### C4 Level 1 — System Context
+*(Who uses the system and what external systems does it talk to?)*
+
 ```mermaid
 C4Context
-  title System Context
+  title C4 Level 1: System Context
 
   Person(customer, "Customer", "Browses and buys products")
   System(shop, "Shop Backend", "Catalog, cart, orders, payments")
@@ -38,9 +41,12 @@ C4Context
   Rel(unzer, shop, "Confirms payments via webhook", "HTTPS POST")
 ```
 
+### C4 Level 2 — Container Diagram
+*(What deployable units make up the system and how do they communicate?)*
+
 ```mermaid
 C4Container
-  title Container Diagram
+  title C4 Level 2: Container Diagram
 
   Person(customer, "Customer")
 
