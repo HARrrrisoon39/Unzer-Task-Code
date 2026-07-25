@@ -347,30 +347,36 @@ Cross-module references are by ID only — e.g. `payment.order_id` is a plain UU
 ## 9. AWS Deployment (planned)
 
 ```mermaid
-C4Deployment
-  title AWS Deployment (eu-central-1)
+graph TB
+    subgraph internet["Internet"]
+        Customer["👤 Customer"]
+    end
 
-  Deployment_Node(aws, "AWS") {
-    Deployment_Node(public, "Public subnet") {
-      Container(alb, "Application Load Balancer", "HTTPS termination")
-    }
-    Deployment_Node(private, "Private subnet") {
-      Container(ecs, "ECS Fargate", "Spring Boot app — scales horizontally")
-      ContainerDb(rds, "RDS PostgreSQL", "Multi-AZ")
-      Container(cache, "ElastiCache Redis", "Catalog read cache")
-    }
-    Container(cdn, "CloudFront + S3", "checkout.html static page")
-    Container(sm, "Secrets Manager", "Unzer API key")
-    Container(cw, "CloudWatch", "Logs and metrics")
-  }
+    subgraph aws["AWS eu-central-1"]
+        subgraph public["Public subnet"]
+            ALB["Application Load Balancer\nHTTPS termination"]
+            CDN["CloudFront + S3\ncheckout.html"]
+        end
+        subgraph private["Private subnet"]
+            ECS["ECS Fargate\nSpring Boot app\nscales horizontally"]
+            RDS["RDS PostgreSQL\nMulti-AZ"]
+            Redis["ElastiCache Redis\nCatalog read cache"]
+        end
+        SM["Secrets Manager\nUnzer API key"]
+        CW["CloudWatch\nLogs + metrics"]
+    end
 
-  Rel(customer, cdn, "Loads checkout page", "HTTPS")
-  Rel(customer, alb, "API calls", "HTTPS")
-  Rel(alb, ecs, "Routes traffic")
-  Rel(ecs, rds, "JDBC")
-  Rel(ecs, cache, "Catalog reads")
-  Rel(ecs, sm, "Fetch secrets at startup")
-  Rel(ecs, cw, "Logs + metrics")
+    Unzer["Unzer\nexternal"]
+
+    Customer -->|"HTTPS"| CDN
+    Customer -->|"HTTPS"| ALB
+    ALB -->|"routes traffic"| ECS
+    ECS -->|"JDBC"| RDS
+    ECS -->|"cache reads"| Redis
+    ECS -->|"fetch secrets at startup"| SM
+    ECS -->|"logs + metrics"| CW
+    ECS -->|"authorize / charge"| Unzer
+    Unzer -->|"webhook POST"| ALB
 ```
 
 **Scaling strategy — load concentrates in two very different places:**
