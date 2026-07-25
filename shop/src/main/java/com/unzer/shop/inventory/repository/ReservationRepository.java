@@ -7,12 +7,9 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 public interface ReservationRepository extends JpaRepository<Reservation, UUID> {
-
-    Optional<Reservation> findByOrderIdAndStatus(UUID orderId, Reservation.ReservationStatus status);
 
     @Query("SELECT r FROM Reservation r WHERE r.status = 'RESERVED' AND r.expiresAt < :now")
     List<Reservation> findExpired(@Param("now") Instant now);

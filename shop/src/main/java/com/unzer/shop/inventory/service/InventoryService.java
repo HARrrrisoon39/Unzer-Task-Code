@@ -64,22 +64,20 @@ public class InventoryService {
         reservationRepository.save(r);
     }
 
-    @Transactional
-    public void confirm(UUID reservationId) {
+    private void confirm(UUID reservationId) {
         Reservation r = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found: " + reservationId));
-        if (r.getStatus() == Reservation.ReservationStatus.CONFIRMED) return; // idempotent
+        if (r.getStatus() == Reservation.ReservationStatus.CONFIRMED) return;
 
         inventoryRepository.confirmReservation(r.getVariantId(), r.getQuantity());
         r.setStatus(Reservation.ReservationStatus.CONFIRMED);
         reservationRepository.save(r);
     }
 
-    @Transactional
-    public void release(UUID reservationId) {
+    private void release(UUID reservationId) {
         Reservation r = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found: " + reservationId));
-        if (r.getStatus() == Reservation.ReservationStatus.RELEASED) return; // idempotent
+        if (r.getStatus() == Reservation.ReservationStatus.RELEASED) return;
 
         inventoryRepository.releaseReservation(r.getVariantId(), r.getQuantity());
         r.setStatus(Reservation.ReservationStatus.RELEASED);
@@ -100,5 +98,15 @@ public class InventoryService {
                 log.error("Failed to release expired reservation {}: {}", r.getId(), e.getMessage());
             }
         }
+    }
+
+    @Transactional
+    public void confirmReservationsByOrder(UUID orderId) {
+        reservationRepository.findByOrderId(orderId).forEach(r -> confirm(r.getId()));
+    }
+
+    @Transactional
+    public void releaseReservationsByOrder(UUID orderId) {
+        reservationRepository.findByOrderId(orderId).forEach(r -> release(r.getId()));
     }
 }

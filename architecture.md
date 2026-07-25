@@ -1,84 +1,67 @@
-# E-Commerce Shop — Architecture Document
+# E-Commerce Shop — Architecture
 
 ## 1. What This Is
 
-An online shop backend where customers can browse products, add to cart, and pay using **Unzer** (credit card, Wero, or Open Banking). The backend handles everything: products, stock, orders, and payments.
+A Spring Boot backend for an online shop. Customers can browse products, add items to a cart, and pay using Unzer (Credit Card, Wero, or Open Banking).
 
-**What's real vs stubbed:**
-- Real: checkout flow, Unzer payment (Card + Wero), webhook receiver, stock reservation
-- Stubbed: email notifications, full admin UI, multi-currency
-
-**Assumptions:**
-- EUR only
-- Guest checkout allowed (no account required)
-- Stock reservation held for 15 minutes, then released automatically
+**In scope:** product catalog, cart, stock reservation, order lifecycle, Unzer payment, webhook processing.  
+**Out of scope:** email notifications, admin UI, multi-currency (EUR only).  
+**Guest checkout is allowed** — no account required, cart is keyed by a session token.
 
 ---
 
-## 2. How the System Is Split
+## 2. Module Layout
 
-Instead of one big app or many microservices, I chose a **modular monolith** — a single deployable Spring Boot app split into clear internal modules. Each module owns its own data and talks to others through Java interfaces only.
-
-**Why not microservices?** They add a lot of complexity (network calls, distributed transactions) for problems that don't need it yet. The code is structured so individual modules can be extracted later if needed.
+One deployable Spring Boot app split into eight packages. Each package owns its own models, repositories, and services. Modules talk to each other only through injected Spring beans — no HTTP calls between them.
 
 | Module | What it does |
 |---|---|
-| `catalog` | Products and variants (read-only in the slice) |
+| `catalog` | Products and variants — read-only |
 | `inventory` | Stock levels, reservations, oversell prevention |
-| `cart` | Shopping cart per session |
-| `order` | Order lifecycle and state machine |
-| `payment` | Unzer payment gateway integration |
+| `cart` | Shopping cart per session token |
+| `order` | Order lifecycle and status transitions |
+| `payment` | Unzer gateway integration, checkout orchestration |
 | `customer` | Registration, login, JWT tokens |
-| `webhook` | Receives and processes Unzer webhook events |
-| `common` | Shared config: security, JWT filter, error handling |
-
-### C4 Context Diagram
+| `webhook` | Receives Unzer webhook events; `WebhookRegistrar` auto-registers the endpoint with Unzer on startup |
+| `common` | Security config, JWT filter, global error handling |
 
 ```mermaid
 C4Context
   title System Context
 
   Person(customer, "Customer", "Browses and buys products")
-  Person(admin, "Admin", "Manages products and orders")
-  System(shop, "Shop Backend", "Handles catalog, cart, orders, payments")
+  System(shop, "Shop Backend", "Catalog, cart, orders, payments")
   System_Ext(unzer, "Unzer", "Processes payments, sends webhook confirmations")
-  System_Ext(email, "Email (SES)", "Order confirmation emails")
 
   Rel(customer, shop, "Uses", "HTTPS")
-  Rel(admin, shop, "Manages", "HTTPS")
   Rel(shop, unzer, "Initiates payments", "HTTPS")
-  Rel(unzer, shop, "Confirms payments via webhook", "HTTPS")
-  Rel(shop, email, "Sends emails", "AWS SDK")
+  Rel(unzer, shop, "Confirms payments via webhook", "HTTPS POST")
 ```
-
-### C4 Container Diagram
 
 ```mermaid
 C4Container
-  title Containers
+  title Container Diagram
 
   Person(customer, "Customer")
 
   System_Boundary(shop, "Shop") {
-    Container(api, "Spring Boot API", "Java 21", "All business logic")
-    ContainerDb(db, "PostgreSQL", "RDS", "All data")
-    Container(cache, "Redis", "ElastiCache", "Cart sessions, cache")
+    Container(api, "Spring Boot API", "Java 21", "All business logic — catalog, cart, inventory, order, payment, customer, webhook")
+    ContainerDb(db, "PostgreSQL", "RDS / H2 (dev)", "Single shared database; one schema per module")
   }
 
-  System_Ext(unzer, "Unzer")
-  System_Ext(cdn, "S3 + CloudFront", "Checkout HTML page")
+  System_Ext(unzer, "Unzer", "Payment gateway")
 
-  Rel(customer, cdn, "Loads checkout page")
-  Rel(customer, api, "API calls", "HTTPS / ALB")
-  Rel(api, db, "Reads/writes data")
-  Rel(api, cache, "Session + cache")
-  Rel(api, unzer, "Payment API calls")
-  Rel(unzer, api, "Webhook events", "HTTPS POST")
+  Rel(customer, api, "REST API calls", "HTTPS")
+  Rel(api, db, "Reads / writes", "JDBC / JPA")
+  Rel(api, unzer, "Initiates authorize / charge", "HTTPS / Unzer Java SDK")
+  Rel(unzer, api, "Webhook events", "HTTPS POST /api/webhooks/unzer")
 ```
+
+**Why a single database?** All modules live in one process and share one PostgreSQL instance. Separate databases per module would require distributed transactions (two-phase commit or sagas) to keep order + inventory + payment consistent — significant complexity for no real benefit at this scale. Modules reference each other only by foreign key ID, never by joining across schemas.
 
 ---
 
-## 3. Data Model (Key Tables)
+## 3. Data Model
 
 ```mermaid
 erDiagram
@@ -87,11 +70,13 @@ erDiagram
     string email
     string password_hash
     string role
+    timestamp created_at
   }
   PRODUCT {
     uuid id PK
     string sku
     string name
+    string description
     boolean active
   }
   PRODUCT_VARIANT {
@@ -120,6 +105,7 @@ erDiagram
     uuid id PK
     uuid customer_id FK
     string session_token
+    timestamp updated_at
   }
   CART_ITEM {
     uuid id PK
@@ -141,6 +127,8 @@ erDiagram
     string city
     string country
     string zip
+    timestamp created_at
+    timestamp updated_at
   }
   ORDER_LINE {
     uuid id PK
@@ -150,6 +138,7 @@ erDiagram
     string name
     int quantity
     decimal unit_price
+    string currency
   }
   ORDER_STATUS_HISTORY {
     uuid id PK
@@ -164,12 +153,15 @@ erDiagram
     uuid order_id FK
     string unzer_payment_id
     string unzer_type_id
+    string unzer_charge_id
     string method
     string status
     decimal amount
     string currency
     string idempotency_key
     string redirect_url
+    timestamp created_at
+    timestamp updated_at
   }
   PAYMENT_EVENT {
     uuid id PK
@@ -178,6 +170,7 @@ erDiagram
     text raw_payload
     string retrieve_url
     boolean processed
+    timestamp received_at
   }
 
   CUSTOMER ||--o{ SHOP_ORDER : places
@@ -192,44 +185,32 @@ erDiagram
 ```
 
 **Key decisions:**
-- Money stored as `DECIMAL(19,4)` — never float
-- `INVENTORY.version` is used for optimistic locking (explained in §5)
-- `PAYMENT.idempotency_key` = `orderId + method`, unique in DB — prevents double-charging if anything retries
-- `unzer_payment_id` is how we match Unzer webhooks back to our orders
-
-**Single shared PostgreSQL database** — all modules use one DB with separate table prefixes. Separate databases per module would require distributed transactions, which adds significant complexity for no real benefit at this scale. If a module needs to scale independently later, it can be extracted with its own DB at that point.
-
-**Key indexes:**
-- `payment(idempotency_key)` — unique, fast lookup on retry
-- `payment(unzer_payment_id)` — webhook handler looks up by this on every event
-- `payment_event(unzer_payment_id, event_type)` — duplicate webhook check
-- `inventory(variant_id)` — every checkout hits this
-- `reservation(order_id)` — confirm/release on payment result
+- Money stored as `DECIMAL(19,4)` — never float.
+- `INVENTORY.version` enables optimistic locking (see §5).
+- `PAYMENT.idempotency_key = orderId + ":" + method` — unique DB constraint prevents double-charging on retries.
+- `PAYMENT.unzer_charge_id` — stored at initiation for Wero and Open Banking; used when processing refunds.
+- `PAYMENT_EVENT(unzer_payment_id, event_type)` — unique constraint silently drops duplicate webhooks.
 
 ---
 
 ## 4. Checkout & Payment Flow
 
-### Order States
+### Order states
+
+Only transitions with actual code implementations are shown.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> CREATED : Cart checked out
-  CREATED --> AWAITING_PAYMENT : Payment started
-  AWAITING_PAYMENT --> PAID : Webhook confirms success
-  AWAITING_PAYMENT --> PAYMENT_FAILED : Webhook confirms failure
-  PAYMENT_FAILED --> AWAITING_PAYMENT : Customer retries
-  PAID --> FULFILLING : Fulfilment started
-  FULFILLING --> SHIPPED : Dispatched
-  SHIPPED --> COMPLETED : Delivered
+  [*] --> CREATED : POST /checkout/initiate
+  CREATED --> AWAITING_PAYMENT : POST /checkout/pay
+  AWAITING_PAYMENT --> PAID : Webhook COMPLETED
+  AWAITING_PAYMENT --> PAYMENT_FAILED : Webhook CANCELED
   PAID --> REFUNDED : Refund requested
-  AWAITING_PAYMENT --> CANCELLED : Customer cancels
-  COMPLETED --> [*]
-  CANCELLED --> [*]
-  REFUNDED --> [*]
 ```
 
-### Checkout Sequence (Credit Card example)
+Future states (`FULFILLING`, `SHIPPED`, `COMPLETED`, `CANCELLED`) are defined in the enum but not yet wired to any endpoint.
+
+### Request sequence (Credit Card example)
 
 ```mermaid
 sequenceDiagram
@@ -238,192 +219,193 @@ sequenceDiagram
   participant API
   participant Unzer
 
-  Browser->>API: POST /checkout/initiate (cart + address)
-  API->>API: Reserve stock (optimistic lock)
-  API->>API: Create order (status=CREATED)
-  API-->>Browser: {orderId, publicKey}
+  Browser->>API: POST /checkout/initiate {address}
+  API->>API: Reserve stock (optimistic lock, 15 min TTL)
+  API->>API: Create order (CREATED)
+  API-->>Browser: {orderId, total, publicKey}
 
-  Browser->>Browser: User enters card in Unzer UI Component
-  Note over Browser: Card data goes directly to Unzer — never touches our server
+  Browser->>Browser: Customer enters card in Unzer UI Component
+  Note over Browser: Card data goes to Unzer — never touches our server
   Browser->>API: POST /checkout/pay {orderId, method=CARD, typeId}
-  API->>Unzer: authorize(amount, currency, typeId, returnUrl)
-  Unzer-->>API: {paymentId, redirectUrl} — status=PENDING (3DS)
-  API-->>Browser: {redirectUrl}
+  API->>Unzer: authorize(amount, typeId, returnUrl)
+  Unzer-->>API: {paymentId, redirectUrl, status=PENDING}
+  API->>API: Order → AWAITING_PAYMENT
+  API-->>Browser: {redirectUrl, action=REDIRECT}
 
-  Browser->>Browser: Redirect to 3DS bank page
-  Browser->>API: GET /checkout/return?orderId=... (after 3DS)
-  API-->>Browser: "Confirming payment, please wait..."
+  Browser->>Unzer: 3DS redirect
+  Browser->>API: GET /checkout/return?orderId=...
+  API-->>Browser: "Poll /checkout/status for result"
 
   Unzer->>API: POST /webhooks/unzer {event, paymentId}
-  API->>Unzer: GET /payments/{paymentId} (verify state)
-  Unzer-->>API: status=COMPLETED
-  API->>API: Order → PAID, stock confirmed
+  API->>API: Deduplicate (payment_event unique constraint)
+  API->>Unzer: fetchPayment(paymentId) — verify real state
+  Unzer-->>API: COMPLETED
+  API->>API: Order → PAID, confirm stock reservations
   API-->>Unzer: 200 OK
 
   Browser->>API: GET /checkout/status?orderId=...
   API-->>Browser: {status: "PAID"}
 ```
 
-**Why not confirm on the return URL?** The redirect can arrive before Unzer has finished processing. The webhook is the reliable signal — always fetch the real state from Unzer before acting.
+### Payment methods
 
-### Payment Methods
+All three implement the same `PaymentGateway` interface (`initiate` + `refund`). Adding a new method means writing one new class.
 
-All three methods go through one `PaymentGateway` interface. Adding a fourth method means writing one new class.
+| Method | Flow | chargeId available at initiation? |
+|---|---|---|
+| **Credit Card** | `authorize()` → 3DS redirect → webhook | No (authorize flow, no charge yet) |
+| **Wero** | `charge()` → redirect → webhook | Yes |
+| **Open Banking** | `charge()` → redirect to bank → webhook | Yes |
 
-| Method | Flow |
-|---|---|
-| **Credit Card** | typeId from UI Component → `authorize()` → 3DS redirect → webhook |
-| **Wero** | Create Wero resource → `charge()` → redirect → webhook |
-| **Open Banking** | Create OpenBanking resource → `charge()` → redirect to bank → webhook |
+**Why confirm on the webhook, not the return URL?** The browser redirect can arrive before Unzer finishes processing. The webhook is the authoritative signal — the handler always re-fetches the real state from Unzer before acting.
 
 ---
 
 ## 5. The Two Hard Problems
 
-### Overselling (two people buying the last item)
+### Overselling
 
-When a customer checks out, we run this DB update atomically:
+`InventoryService.reserve()` runs one atomic DB update:
 
 ```sql
 UPDATE inventory
 SET available = available - :qty,
     reserved  = reserved  + :qty,
     version   = version   + 1
-WHERE variant_id = :id
-  AND version    = :expectedVersion   -- fails if someone else updated first
-  AND available  >= :qty              -- fails if not enough stock
+WHERE variant_id = :variantId
+  AND version    = :expectedVersion  -- fails if another transaction updated first
+  AND available  >= :qty             -- fails if not enough stock
 ```
 
-If `rowsUpdated = 0`, another buyer got there first or stock ran out. We retry up to 3 times, then return an "out of stock" error. A background job releases reservations that haven't converted to paid orders within 15 minutes.
+If `rowsUpdated = 0`, a concurrent buyer won or stock ran out. The service retries up to 3 times, then throws `ConcurrentReservationException`. A `@Scheduled` job runs every 60 seconds and releases any reservation whose `status = 'RESERVED'` and `expires_at < now` — returning stock for abandoned carts. Reservations for paid orders are already `CONFIRMED`, so the job leaves them alone.
 
-### Keeping order + stock + payment consistent
+### Idempotency and consistency
 
-**The problem:** any step can fail independently — Unzer can time out, our DB can fail mid-write, a webhook can arrive twice.
+Any step can fail independently — Unzer can time out, the DB can fail mid-write, a webhook can arrive twice.
 
-**The approach:**
-1. The webhook handler saves the raw event to DB first (audit trail, never lost)
-2. It then fetches the real payment state from Unzer (don't trust the event name)
-3. All state transitions are idempotent — running them twice gives the same result
-4. `PAYMENT.idempotency_key` unique constraint stops any duplicate charges at the DB level
-
-**Failure examples:**
-
-| What fails | Recovery |
+| Failure | Recovery |
 |---|---|
-| Order update fails after payment succeeds | Unzer retries webhook; idempotency key means no double charge; order transitions on retry |
-| Webhook arrives before redirect | Webhook processes first, sets order PAID. Redirect handler just reads current status |
-| Unzer times out mid-charge | Order stays AWAITING_PAYMENT; background poller fetches Unzer state every 30s |
-| Reservation expires after payment | Expiry job checks order status first; PAID orders skip release |
+| Webhook arrives twice | `payment_event(unzer_payment_id, event_type)` unique constraint rejects the duplicate; handler returns 200 immediately |
+| Webhook arrives before browser redirect | Webhook sets order to PAID first; `/checkout/return` just reads the current status |
+| DB fails after payment succeeds | Unzer retries the webhook; `idempotency_key` constraint prevents double-charge; order transitions on retry |
+| Reservation expires before payment completes | Expiry job releases it; `CONFIRMED` reservations are untouched |
+
+Raw webhook payloads are saved to `payment_event` before any processing — audit trail that can be replayed if processing fails.
 
 ---
 
-## 6. Tech Choices
+## 6. Data Ownership
+
+Each module owns its tables exclusively. No module queries another module's tables directly — cross-module access goes through the owning module's service.
+
+| Module | Tables it owns | Referenced by |
+|---|---|---|
+| `catalog` | `product`, `product_variant` | `inventory`, `cart` (by `variant_id`) |
+| `inventory` | `inventory`, `reservation` | `payment` (via `InventoryService`) |
+| `cart` | `cart`, `cart_item` | `payment/CheckoutService` |
+| `order` | `shop_order`, `order_line`, `order_status_history` | `payment` (via `OrderService`) |
+| `payment` | `payment`, `payment_event` | `webhook` (via `PaymentService`) |
+| `customer` | `customer` | `order` (by `customer_id`), `cart` (by `customer_id`) |
+
+Cross-module references are by ID only — e.g. `payment.order_id` is a plain UUID column, not a JPA `@ManyToOne` join to `Order`. This means each module can evolve its schema independently without breaking others.
+
+---
+
+## 7. Sync vs. Async
+
+| Interaction | Style | Why |
+|---|---|---|
+| Customer → API (browse, cart, checkout) | **Synchronous REST** | Customer is waiting; latency matters; simple request/response |
+| API → Unzer (authorize / charge) | **Synchronous HTTPS** | We need the `paymentId` and `redirectUrl` immediately to respond to the customer |
+| Unzer → API (webhook) | **Asynchronous HTTP POST** | Unzer fires it independently; we process it and return 200 — the customer polls separately |
+| Browser polling `/checkout/status` | **Synchronous short-poll** | Simple; avoids WebSocket complexity for a one-time status check |
+| Expiry job (release stale reservations) | **Async scheduled** | Background concern; 60-second granularity is fine; no customer is waiting |
+
+**Why not a message queue (Kafka/SQS) between modules?** All modules are in one process — there is no network boundary to bridge. Adding a broker would introduce ordering guarantees, consumer groups, and dead-letter queues for a problem that a DB transaction already solves atomically. If modules are ever extracted into separate services, the `payment_event` table is already an outbox-style audit log that could feed a queue at that point.
+
+---
+
+## 8. Tech Stack
 
 | Choice | Why |
 |---|---|
-| **Java 21 + Spring Boot 3** | LTS, virtual threads, mature ecosystem |
-| **Unzer Java SDK 5.2.0** | Official SDK, handles auth and serialization |
-| **PostgreSQL** | ACID transactions needed for stock + order consistency |
-| **Flyway** | All schema changes versioned, reproducible |
-| **JWT (stateless)** | Simple, no session store needed |
-| **H2 (dev profile)** | Zero-setup local run without Docker |
-
-**Representative code — the trickiest part (oversell prevention):**
-
-```java
-// InventoryService.java — optimistic locking with retry
-@Transactional
-public UUID reserve(UUID variantId, int qty, Duration ttl) {
-    for (int attempt = 0; attempt < 3; attempt++) {
-        Inventory inv = inventoryRepository.findByVariantId(variantId)
-                .orElseThrow(() -> new IllegalArgumentException("Variant not found"));
-
-        if (inv.getAvailable() < qty) throw new InsufficientStockException(variantId, qty, inv.getAvailable());
-
-        // Atomic compare-and-swap — if version changed or stock gone, rowsUpdated = 0
-        int updated = inventoryRepository.reserveOptimistic(variantId, qty, inv.getVersion());
-        if (updated == 1) {
-            return reservationRepository.save(Reservation.builder()
-                    .variantId(variantId).quantity(qty)
-                    .expiresAt(Instant.now().plus(ttl))
-                    .status(ReservationStatus.RESERVED).build()).getId();
-        }
-        // Version conflict — another concurrent request won, retry
-    }
-    throw new ConcurrentReservationException(variantId);
-}
-```
-
-```sql
--- The query that prevents overselling at the DB level
-UPDATE inventory
-SET available = available - :qty, reserved = reserved + :qty, version = version + 1
-WHERE variant_id = :variantId AND version = :expectedVersion AND available >= :qty
-```
-
-Two concurrent buyers both read `version=5`. Only one `UPDATE` will match `version=5` — the other gets `rowsUpdated=0` and retries. Even under race conditions, stock can never go below zero.
+| Java 21 + Spring Boot 3 | LTS, virtual threads, mature ecosystem |
+| Unzer Java SDK 5.2.0 | Official SDK — handles auth, serialization, and Unzer API details |
+| PostgreSQL | ACID transactions required for stock + order consistency |
+| Flyway | Schema changes versioned and reproducible (V1 initial schema, V2 fixes, V3 cleanup) |
+| JWT (stateless) | No session store needed |
+| H2 (dev profile) | Zero-setup local run — switch to Postgres with `--spring.profiles.active=postgres` |
 
 ---
 
-## 7. AWS Deployment
+## 9. AWS Deployment (planned)
 
 ```mermaid
 C4Deployment
   title AWS Deployment (eu-central-1)
 
   Deployment_Node(aws, "AWS") {
-    Deployment_Node(public, "Public") {
-      Container(alb, "Load Balancer", "HTTPS termination")
-      Container(cf, "CloudFront + S3", "Checkout HTML")
+    Deployment_Node(public, "Public subnet") {
+      Container(alb, "Application Load Balancer", "HTTPS termination")
     }
     Deployment_Node(private, "Private subnet") {
-      Container(ecs, "ECS Fargate", "Spring Boot app (auto-scaling)")
+      Container(ecs, "ECS Fargate", "Spring Boot app — scales horizontally")
       ContainerDb(rds, "RDS PostgreSQL", "Multi-AZ")
-      ContainerDb(redis, "ElastiCache Redis", "Cache + sessions")
+      Container(cache, "ElastiCache Redis", "Catalog read cache")
     }
-    Container(sm, "Secrets Manager", "API keys — never in code or env files")
-    Container(cw, "CloudWatch", "Logs, metrics, alerts")
+    Container(cdn, "CloudFront + S3", "checkout.html static page")
+    Container(sm, "Secrets Manager", "Unzer API key")
+    Container(cw, "CloudWatch", "Logs and metrics")
   }
 
+  Rel(customer, cdn, "Loads checkout page", "HTTPS")
+  Rel(customer, alb, "API calls", "HTTPS")
   Rel(alb, ecs, "Routes traffic")
   Rel(ecs, rds, "JDBC")
-  Rel(ecs, redis, "Cache")
+  Rel(ecs, cache, "Catalog reads")
   Rel(ecs, sm, "Fetch secrets at startup")
   Rel(ecs, cw, "Logs + metrics")
 ```
 
-**Secrets:** Unzer private key stored in Secrets Manager only. The ECS task fetches it at startup. Never in code, never in `.env` files committed to git.
+**Scaling strategy — load concentrates in two very different places:**
 
-**Scaling:** Catalog reads are cached in Redis + CloudFront. Checkout writes go to the primary DB. ECS tasks scale horizontally behind the ALB.
+| Path | Characteristic | How to scale |
+|---|---|---|
+| Catalog reads (`GET /api/products/**`) | High volume, read-only, cacheable | CloudFront CDN in front of API; Redis cache for product/variant queries; read replicas on RDS |
+| Checkout writes (`POST /checkout/**`) | Low volume, stateful, DB-heavy | Horizontal ECS task scaling behind ALB; connection pooling (HikariCP); optimistic locking avoids held row locks that would serialise writes |
+| Webhook events | Bursty, idempotent | Stateless handler — any ECS task can process any webhook; duplicate-safe via unique constraint |
 
-**CI/CD (GitHub Actions):**
-- Pull request → run tests (H2, no external services needed)
-- Merge to main → build Docker image → push to ECR → rolling deploy to ECS
-- No manual steps for normal deploys; production requires a manual approval gate
-
-**Observability:**
-- **Logs** — structured JSON to CloudWatch Logs; every log line includes `orderId` and `paymentId`
-- **Metrics** — CloudWatch custom metrics: `payment.succeeded`, `payment.failed`, `stock.reservation.failed`
-- **Alerts** — alarm if `payment.failed` rate exceeds 5%, or P99 checkout latency exceeds 2s
+- **Secrets:** Unzer private key in Secrets Manager only — never in code or `.env` files.
+- **CI/CD:** PR → tests on H2 → merge → Docker image pushed to ECR → rolling ECS deploy. Production requires a manual approval gate.
+- **Observability:** structured JSON logs with `orderId`/`paymentId` on every line; CloudWatch metrics for `payment.succeeded`, `payment.failed`, `stock.reservation.failed`; alarm if payment failure rate exceeds 5% or checkout P99 latency exceeds 2s.
 
 ---
 
-## 8. Security
+## 10. Security
 
-- **No card data on our server** — Unzer UI Components handle card input in the browser and return only a token (`typeId`). We never see the card number. This keeps us out of PCI scope.
-- **JWT auth** — stateless, signed tokens for customer and admin roles
-- **API key** — loaded from Secrets Manager at runtime, never hardcoded
-- **HTTPS everywhere** — ALB enforces HTTPS, rejects plain HTTP
+- **No card data on our server** — Unzer UI Components handle card input in the browser and return only a `typeId` token. We never see the card number; this keeps the app out of PCI scope.
+- **JWT auth** — stateless signed tokens; guest checkout endpoints (`/api/checkout/**`) are public; all other endpoints require a valid token.
+- **Customer vs admin roles** — `role` column on `Customer`; `SecurityConfig` restricts admin paths to `ADMIN` role. Admin catalog CRUD endpoints are designed but not fully wired in the vertical slice.
+- **API key** — loaded from Secrets Manager at runtime, never hardcoded.
+- **HTTPS everywhere** — ALB rejects plain HTTP.
 
 ---
 
-## 9. Trade-offs & What I'd Do With More Time
+## 11. Trade-offs & What's Not Built
 
 | Decision | Trade-off |
 |---|---|
-| Modular monolith | Simpler now; individual modules can be extracted into services later |
+| Modular monolith | Simpler than microservices now; each module can be extracted into its own service later if needed |
 | Optimistic locking | Works well at normal load; under extreme flash-sale concurrency a queue-based checkout would be more reliable |
-| Webhook-only confirmation | Slightly slower UX (customer waits a second); correct and reliable |
-| H2 for local dev | Quick to get started; switch to Postgres with one flag for real testing |
+| Webhook-only confirmation | Slightly slower UX — customer polls for final status; eliminates the redirect-before-webhook race condition |
+| Single shared DB | No distributed transactions needed; modules can be split with their own DB later if they need to scale independently |
+| Card refunds not yet supported | Card uses `authorize` (no charge ID at initiation); refund throws clearly if attempted — needs a capture step wired first |
 
-**With more time:** proper integration tests with Testcontainers, a reconciliation job that compares our payment records with Unzer's nightly, and a circuit breaker around Unzer API calls.
+**Not built in the vertical slice (by design):**
+- Product categories and search — catalog read model is there; category table and search endpoint not added
+- Full order lifecycle transitions (`FULFILLING → SHIPPED → COMPLETED`) — states are defined in the enum; no fulfilment service wired
+- Admin role enforcement on catalog CRUD endpoints — role distinction exists in JWT; `@PreAuthorize` guards not yet applied
+- Cart availability check at add-item time — stock checked at checkout reservation, not at cart add
+- Email notifications — stubbed (no SES wiring)
+
+**With more time:** Testcontainers integration tests, a nightly reconciliation job comparing our payment records against Unzer's API, and a circuit breaker around Unzer API calls.

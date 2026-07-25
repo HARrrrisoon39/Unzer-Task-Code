@@ -1,13 +1,11 @@
 package com.unzer.shop.payment.controller;
 
-import com.unzer.shop.cart.model.Cart;
-import com.unzer.shop.cart.service.CartService;
 import com.unzer.shop.common.UnzerProperties;
-import com.unzer.shop.inventory.service.InventoryService;
 import com.unzer.shop.order.model.Order;
 import com.unzer.shop.order.service.OrderService;
 import com.unzer.shop.payment.model.Payment;
 import com.unzer.shop.payment.model.PaymentMethod;
+import com.unzer.shop.payment.service.CheckoutService;
 import com.unzer.shop.payment.service.PaymentService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -18,9 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,9 +33,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CheckoutController {
 
-    private final CartService cartService;
+    private final CheckoutService checkoutService;
     private final OrderService orderService;
-    private final InventoryService inventoryService;
     private final PaymentService paymentService;
     private final UnzerProperties unzerProperties;
 
@@ -49,26 +44,10 @@ public class CheckoutController {
             @RequestHeader("X-Session-Token") String sessionToken,
             @Valid @RequestBody InitiateRequest req) {
 
-        Cart cart = cartService.getOrCreate(sessionToken);
-        if (cart.getItems().isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Cart is empty"));
-        }
-
-        // Reserve stock for every line item, collecting reservation IDs
-        List<UUID> reservationIds = cart.getItems().stream()
-                .map(item -> inventoryService.reserve(
-                        item.getVariantId(), item.getQuantity(), Duration.ofMinutes(15)))
-                .toList();
-
         OrderService.ShippingAddress address = new OrderService.ShippingAddress(
                 req.getStreet(), req.getCity(), req.getCountry(), req.getZip());
 
-        Order order = orderService.createOrder(cart, address, null);
-
-        // Link each reservation to the order so confirm/release can find them later
-        reservationIds.forEach(rId ->
-                inventoryService.linkReservationToOrder(rId, order.getId()));
-
+        Order order = checkoutService.initiate(sessionToken, address);
         log.info("Checkout initiated: orderId={}, total={}", order.getId(), order.getTotalAmount());
 
         return ResponseEntity.ok(Map.of(
@@ -137,3 +116,4 @@ public class CheckoutController {
         private String typeId; // required for CARD; null for WERO / OPEN_BANKING
     }
 }
+

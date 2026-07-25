@@ -13,7 +13,4 @@ public interface PaymentGateway {
 
     /** Refunds a previously charged payment (full or partial). */
     void refund(String unzerPaymentId, String unzerChargeId, BigDecimal amount, String currency);
-
-    /** Fetches current payment state from Unzer (used for polling reconciliation). */
-    PaymentState fetchState(String unzerPaymentId);
 }

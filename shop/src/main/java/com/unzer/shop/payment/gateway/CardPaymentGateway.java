@@ -3,7 +3,6 @@ package com.unzer.shop.payment.gateway;
 import com.unzer.payment.Authorization;
 import com.unzer.payment.BaseTransaction;
 import com.unzer.payment.Unzer;
-import com.unzer.payment.BasePayment;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -60,25 +59,5 @@ public class CardPaymentGateway implements PaymentGateway {
         } catch (Exception e) {
             throw new PaymentGatewayException("Card refund failed: " + e.getMessage(), e);
         }
-    }
-
-    @Override
-    public PaymentState fetchState(String unzerPaymentId) {
-        try {
-            com.unzer.payment.Payment payment = unzer.fetchPayment(unzerPaymentId);
-            return mapState(payment.getPaymentState());
-        } catch (Exception e) {
-            log.warn("Could not fetch card payment state for {}: {}", unzerPaymentId, e.getMessage());
-            return PaymentState.PENDING;
-        }
-    }
-
-    private PaymentState mapState(BasePayment.State state) {
-        if (state == null) return PaymentState.PENDING;
-        return switch (state) {
-            case COMPLETED -> PaymentState.COMPLETED;
-            case CANCELED  -> PaymentState.CANCELLED;
-            default        -> PaymentState.PENDING;
-        };
     }
 }

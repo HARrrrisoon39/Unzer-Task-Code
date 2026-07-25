@@ -27,6 +27,9 @@ public class Payment {
     @Column(name = "unzer_type_id")
     private String unzerTypeId;
 
+    @Column(name = "unzer_charge_id")
+    private String unzerChargeId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentMethod method;

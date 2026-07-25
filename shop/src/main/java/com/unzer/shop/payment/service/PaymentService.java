@@ -1,7 +1,7 @@
 package com.unzer.shop.payment.service;
 
 import com.unzer.shop.common.UnzerProperties;
-import com.unzer.shop.inventory.service.InventoryOrderFacade;
+import com.unzer.shop.inventory.service.InventoryService;
 import com.unzer.shop.order.model.Order;
 import com.unzer.shop.order.model.OrderStatus;
 import com.unzer.shop.order.service.OrderService;
@@ -24,7 +24,7 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final OrderService orderService;
-    private final InventoryOrderFacade inventoryOrderFacade;
+    private final InventoryService inventoryService;
     private final UnzerProperties unzerProperties;
 
     // Spring injects beans by name matching PaymentMethod enum names: CARD, WERO, OPEN_BANKING
@@ -61,6 +61,7 @@ public class PaymentService {
                     .orderId(orderId)
                     .unzerPaymentId(result.getUnzerPaymentId())
                     .unzerTypeId(result.getUnzerTypeId())
+                    .unzerChargeId(result.getChargeId())
                     .method(method)
                     .status(result.isPending() ? PaymentStatus.AWAITING_CONFIRMATION : PaymentStatus.SUCCEEDED)
                     .amount(order.getTotalAmount())
@@ -101,7 +102,7 @@ public class PaymentService {
                 "Payment confirmed via webhook");
 
         // Permanently decrement reserved stock — confirms the reservation
-        inventoryOrderFacade.confirmReservationsByOrder(payment.getOrderId());
+        inventoryService.confirmReservationsByOrder(payment.getOrderId());
 
         log.info("Payment {} confirmed for order {}", unzerPaymentId, payment.getOrderId());
     }
@@ -121,7 +122,7 @@ public class PaymentService {
                 "Payment failed — notified via webhook");
 
         // Return reserved stock to available
-        inventoryOrderFacade.releaseReservationsByOrder(payment.getOrderId());
+        inventoryService.releaseReservationsByOrder(payment.getOrderId());
 
         log.info("Payment {} failed for order {}", unzerPaymentId, payment.getOrderId());
     }
@@ -132,7 +133,10 @@ public class PaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("No payment for order: " + orderId));
 
         PaymentGateway gateway = resolveGateway(payment.getMethod());
-        gateway.refund(payment.getUnzerPaymentId(), "s-chg-1", amount, payment.getCurrency());
+        if (payment.getUnzerChargeId() == null) {
+            throw new IllegalStateException("No charge ID on payment " + payment.getId() + " — refund not possible");
+        }
+        gateway.refund(payment.getUnzerPaymentId(), payment.getUnzerChargeId(), amount, payment.getCurrency());
 
         payment.setStatus(PaymentStatus.REFUNDED);
         paymentRepository.save(payment);

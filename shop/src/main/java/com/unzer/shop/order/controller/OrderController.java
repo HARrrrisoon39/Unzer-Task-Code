@@ -1,5 +1,6 @@
 package com.unzer.shop.order.controller;
 
+import com.unzer.shop.customer.repository.CustomerRepository;
 import com.unzer.shop.order.model.Order;
 import com.unzer.shop.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -16,11 +17,14 @@ import java.util.UUID;
 public class OrderController {
 
     private final OrderService orderService;
+    private final CustomerRepository customerRepository;
 
     @GetMapping
     public ResponseEntity<List<Order>> myOrders(@AuthenticationPrincipal String email) {
-        // In a real app we'd resolve customerId from email; simplified here
-        return ResponseEntity.ok(orderService.getByCustomer(UUID.randomUUID()));
+        UUID customerId = customerRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("Customer not found: " + email))
+                .getId();
+        return ResponseEntity.ok(orderService.getByCustomer(customerId));
     }
 
     @GetMapping("/{orderId}")
