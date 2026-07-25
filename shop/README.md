@@ -7,19 +7,12 @@ Spring Boot backend for an online shop with Unzer payment integration (Credit Ca
 
 ---
 
-## Run Locally
+## Run Locally (no payments — just verify the app starts)
 
-Requires Java 21 and Maven. Uses H2 in-memory DB by default — no Docker needed.
+Requires Java 21 and Maven. Uses H2 in-memory DB — no Docker needed.
 
 ```bash
 cd shop
-
-# Without Unzer keys (payment calls will fail gracefully)
-./mvnw spring-boot:run
-
-# With Unzer sandbox keys (provided at interview)
-UNZER_PRIVATE_KEY=s-priv-xxx \
-UNZER_PUBLIC_KEY=s-pub-xxx \
 ./mvnw spring-boot:run
 ```
 
@@ -28,19 +21,17 @@ UNZER_PUBLIC_KEY=s-pub-xxx \
 
 ---
 
-## Webhook Setup (ngrok)
+## Interview Setup (full payment flow)
 
-Unzer needs a public HTTPS URL to deliver webhook events.
-
+**Step 1 — Start ngrok** (Terminal 1, leave it running)
 ```bash
-# Terminal 1 — start the app
-UNZER_PRIVATE_KEY=s-priv-xxx UNZER_PUBLIC_KEY=s-pub-xxx ./mvnw spring-boot:run
-
-# Terminal 2 — expose localhost
 ngrok http 8080
-# → gives you https://abc123.ngrok.io
+# → copy the https URL e.g. https://abc123.ngrok.io
+```
 
-# Terminal 3 — restart with webhook URL
+**Step 2 — Start the app** (Terminal 2, replace keys and ngrok URL)
+```bash
+cd shop
 UNZER_PRIVATE_KEY=s-priv-xxx \
 UNZER_PUBLIC_KEY=s-pub-xxx \
 UNZER_WEBHOOK_URL=https://abc123.ngrok.io \
@@ -48,7 +39,7 @@ UNZER_RETURN_URL_BASE=https://abc123.ngrok.io \
 ./mvnw spring-boot:run
 ```
 
-The app registers `https://abc123.ngrok.io/api/webhooks/unzer` with Unzer automatically on startup.
+The app auto-registers the webhook with Unzer on startup. Open `http://localhost:8080/checkout.html` to demo.
 
 ---
 
