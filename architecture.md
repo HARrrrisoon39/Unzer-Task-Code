@@ -146,6 +146,15 @@ erDiagram
 - `PAYMENT.idempotency_key` = `orderId + method`, unique in DB — prevents double-charging if anything retries
 - `unzer_payment_id` is how we match Unzer webhooks back to our orders
 
+**Single shared PostgreSQL database** — all modules use one DB with separate table prefixes. Separate databases per module would require distributed transactions, which adds significant complexity for no real benefit at this scale. If a module needs to scale independently later, it can be extracted with its own DB at that point.
+
+**Key indexes:**
+- `payment(idempotency_key)` — unique, fast lookup on retry
+- `payment(unzer_payment_id)` — webhook handler looks up by this on every event
+- `payment_event(unzer_payment_id, event_type)` — duplicate webhook check
+- `inventory(variant_id)` — every checkout hits this
+- `reservation(order_id)` — confirm/release on payment result
+
 ---
 
 ## 4. Checkout & Payment Flow
@@ -268,6 +277,41 @@ If `rowsUpdated = 0`, another buyer got there first or stock ran out. We retry u
 | **JWT (stateless)** | Simple, no session store needed |
 | **H2 (dev profile)** | Zero-setup local run without Docker |
 
+**Representative code — the trickiest part (oversell prevention):**
+
+```java
+// InventoryService.java — optimistic locking with retry
+@Transactional
+public UUID reserve(UUID variantId, int qty, Duration ttl) {
+    for (int attempt = 0; attempt < 3; attempt++) {
+        Inventory inv = inventoryRepository.findByVariantId(variantId)
+                .orElseThrow(() -> new IllegalArgumentException("Variant not found"));
+
+        if (inv.getAvailable() < qty) throw new InsufficientStockException(variantId, qty, inv.getAvailable());
+
+        // Atomic compare-and-swap — if version changed or stock gone, rowsUpdated = 0
+        int updated = inventoryRepository.reserveOptimistic(variantId, qty, inv.getVersion());
+        if (updated == 1) {
+            return reservationRepository.save(Reservation.builder()
+                    .variantId(variantId).quantity(qty)
+                    .expiresAt(Instant.now().plus(ttl))
+                    .status(ReservationStatus.RESERVED).build()).getId();
+        }
+        // Version conflict — another concurrent request won, retry
+    }
+    throw new ConcurrentReservationException(variantId);
+}
+```
+
+```sql
+-- The query that prevents overselling at the DB level
+UPDATE inventory
+SET available = available - :qty, reserved = reserved + :qty, version = version + 1
+WHERE variant_id = :variantId AND version = :expectedVersion AND available >= :qty
+```
+
+Two concurrent buyers both read `version=5`. Only one `UPDATE` will match `version=5` — the other gets `rowsUpdated=0` and retries. Even under race conditions, stock can never go below zero.
+
 ---
 
 ## 7. AWS Deployment
@@ -300,6 +344,16 @@ C4Deployment
 **Secrets:** Unzer private key stored in Secrets Manager only. The ECS task fetches it at startup. Never in code, never in `.env` files committed to git.
 
 **Scaling:** Catalog reads are cached in Redis + CloudFront. Checkout writes go to the primary DB. ECS tasks scale horizontally behind the ALB.
+
+**CI/CD (GitHub Actions):**
+- Pull request → run tests (H2, no external services needed)
+- Merge to main → build Docker image → push to ECR → rolling deploy to ECS
+- No manual steps for normal deploys; production requires a manual approval gate
+
+**Observability:**
+- **Logs** — structured JSON to CloudWatch Logs; every log line includes `orderId` and `paymentId`
+- **Metrics** — CloudWatch custom metrics: `payment.succeeded`, `payment.failed`, `stock.reservation.failed`
+- **Alerts** — alarm if `payment.failed` rate exceeds 5%, or P99 checkout latency exceeds 2s
 
 ---
 
