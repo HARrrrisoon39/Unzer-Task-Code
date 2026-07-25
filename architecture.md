@@ -23,12 +23,14 @@ Instead of one big app or many microservices, I chose a **modular monolith** —
 
 | Module | What it does |
 |---|---|
-| `catalog` | Products and variants |
-| `inventory` | Stock levels, reservations |
-| `cart` | Shopping cart |
-| `order` | Order lifecycle |
-| `payment` | Unzer integration |
-| `customer` | Login, registration |
+| `catalog` | Products and variants (read-only in the slice) |
+| `inventory` | Stock levels, reservations, oversell prevention |
+| `cart` | Shopping cart per session |
+| `order` | Order lifecycle and state machine |
+| `payment` | Unzer payment gateway integration |
+| `customer` | Registration, login, JWT tokens |
+| `webhook` | Receives and processes Unzer webhook events |
+| `common` | Shared config: security, JWT filter, error handling |
 
 ### C4 Context Diagram
 
@@ -98,6 +100,14 @@ erDiagram
     int reserved
     int version
   }
+  RESERVATION {
+    uuid id PK
+    uuid variant_id FK
+    uuid order_id FK
+    int quantity
+    timestamp expires_at
+    string status
+  }
   CART {
     uuid id PK
     string session_token
@@ -125,7 +135,9 @@ erDiagram
 
   CART ||--o{ CART_ITEM : contains
   PRODUCT_VARIANT ||--|| INVENTORY : tracked_by
+  INVENTORY ||--o{ RESERVATION : holds
   SHOP_ORDER ||--|| PAYMENT : paid_via
+  RESERVATION }o--|| SHOP_ORDER : linked_to
 ```
 
 **Key decisions:**

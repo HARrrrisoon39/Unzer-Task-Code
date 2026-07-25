@@ -6,7 +6,7 @@ Take-home assignment: full e-commerce backend with Unzer payment integration.
 
 | File | Description |
 |---|---|
-| [`architecture.md`](architecture.md) | Full architecture document with Mermaid diagrams |
+| [`architecture.md`](../architecture.md) | Full architecture document with Mermaid diagrams |
 | [`shop/`](shop/) | Spring Boot vertical slice: checkout → payment → order confirmation |
 
 ---
