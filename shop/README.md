@@ -29,17 +29,22 @@ ngrok http 8080
 # → copy the https URL e.g. https://abc123.ngrok.io
 ```
 
-**Step 2 — Start the app** (Terminal 2, replace keys and ngrok URL)
+**Step 2 — Add your keys** to `src/main/resources/application-local.yml` (gitignored, never committed)
+```yaml
+unzer:
+  private-key: s-priv-xxx       # given at the interview
+  public-key: s-pub-xxx         # given at the interview
+  webhook-url: https://abc123.ngrok.io      # your ngrok URL
+  return-url-base: https://abc123.ngrok.io  # your ngrok URL
+```
+
+**Step 3 — Start the app** (Terminal 2)
 ```powershell
 cd shop
-$env:UNZER_PRIVATE_KEY="s-priv-xxx"
-$env:UNZER_PUBLIC_KEY="s-pub-xxx"
-$env:UNZER_WEBHOOK_URL="https://abc123.ngrok.io"
-$env:UNZER_RETURN_URL_BASE="https://abc123.ngrok.io"
 mvn spring-boot:run
 ```
 
-The app auto-registers the webhook with Unzer on startup. Open `http://localhost:8080/checkout.html` to demo.
+The app auto-loads `application-local.yml` and registers the webhook with Unzer on startup. Open `http://localhost:8080/checkout.html` to demo.
 
 ---
 

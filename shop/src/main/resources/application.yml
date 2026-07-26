@@ -2,6 +2,11 @@ spring:
   application:
     name: unzer-shop
 
+  # Loads application-local.yml if present (gitignored) for local secrets.
+  # The "optional:" prefix means it's silently skipped if the file doesn't exist.
+  config:
+    import: optional:classpath:application-local.yml
+
   # Default profile uses H2 for zero-setup local dev.
   # Use --spring.profiles.active=postgres for PostgreSQL (requires Docker Compose).
   datasource:
