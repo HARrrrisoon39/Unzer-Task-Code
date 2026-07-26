@@ -9,7 +9,7 @@ Spring Boot backend for an online shop with Unzer payment integration (Credit Ca
 
 ## Run Locally
 
-Requires Java 21 and Maven. Uses H2 in-memory DB — no Docker needed.
+Requires Java 21 and Maven. Uses H2 in-memory DB.
 
 ```bash
 cd shop
@@ -50,10 +50,13 @@ The app auto-loads `application-local.yml` and registers the webhook with Unzer 
 
 ## Demo Screenshots
 
+### 1. Checkout Page
 ![Checkout Page](docs/images/1.png)
+
+### 2. Payment Flow
 ![Payment Flow](docs/images/2.png)
 
-### Test API via Postman
+### 3. Test API via Postman
 
 ![Postman Collection](docs/images/test.png)
 
@@ -62,7 +65,7 @@ Open the Postman collection to test all endpoints:
 
 The collection includes 8 pre-built requests (Register → Login → Browse Products → Add to Cart → View Cart → Initiate Checkout → Pay with Credit Card → Simulate Webhook) with the `Unzer Shop - Local (ngrok)` environment pre-configured.
 
-### H2 In-Memory Database
+### 4. H2 In-Memory Database
 
 Open `http://localhost:8080/h2-console` while the app is running. Connect with:
 
@@ -78,7 +81,7 @@ The console shows all tables created by Flyway migrations:
 
 Tables present: `CART`, `CART_ITEM`, `CUSTOMER`, `INVENTORY`, `ORDER_LINE`, `ORDER_STATUS_HISTORY`, `PAYMENT`, `PAYMENT_EVENT`, `PRODUCT`, `PRODUCT_VARIANT`, `RESERVATION`, `SHOP_ORDER`, `flyway_schema_history`.
 
-### CI/CD Pipeline
+### 5. CI/CD Pipeline
 
 Every push to `main` triggers the `ci-cd.yml` GitHub Actions workflow with two sequential jobs:
 
