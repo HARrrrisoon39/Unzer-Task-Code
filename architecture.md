@@ -8,6 +8,19 @@ A Spring Boot backend for an online shop. Customers can browse products, add ite
 **Out of scope:** email notifications, admin UI, multi-currency (EUR only).  
 **Guest checkout is allowed** — no account required, cart is keyed by a session token.
 
+### In plain English
+
+A customer browses products, adds them to a cart, and checks out. At checkout the system **reserves the stock** (so no one else can grab the last unit), creates an **order**, and asks **Unzer** to take the payment. The customer pays (card details go straight to Unzer, never to us). Unzer then sends a **webhook** back to confirm the money arrived — only then does the order become `PAID` and the reserved stock is permanently deducted. If payment fails or times out, the reserved stock is released back.
+
+```mermaid
+graph LR
+    A["Browse<br/>products"] --> B["Add to<br/>cart"]
+    B --> C["Checkout<br/>(reserve stock,<br/>create order)"]
+    C --> D["Pay via<br/>Unzer"]
+    D --> E["Webhook<br/>confirms"]
+    E --> F["Order PAID<br/>stock deducted"]
+```
+
 ---
 
 ## 2. Module Layout
@@ -203,12 +216,13 @@ Only transitions with actual code implementations are shown.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> CREATED : POST /checkout/initiate
-  CREATED --> AWAITING_PAYMENT : POST /checkout/pay
+  [*] --> AWAITING_PAYMENT : POST /checkout/initiate (order created, stock reserved)
   AWAITING_PAYMENT --> PAID : Webhook COMPLETED
   AWAITING_PAYMENT --> PAYMENT_FAILED : Webhook CANCELED
   PAID --> REFUNDED : Refund requested
 ```
+
+Internally the order is first written as `CREATED`, then transitioned to `AWAITING_PAYMENT` within the same `/checkout/initiate` call once stock is reserved — both steps are recorded in `order_status_history`.
 
 Future states (`FULFILLING`, `SHIPPED`, `COMPLETED`, `CANCELLED`) are defined in the enum but not yet wired to any endpoint.
 
@@ -223,7 +237,7 @@ sequenceDiagram
 
   Browser->>API: POST /checkout/initiate {address}
   API->>API: Reserve stock (optimistic lock, 15 min TTL)
-  API->>API: Create order (CREATED)
+  API->>API: Create order (CREATED → AWAITING_PAYMENT)
   API-->>Browser: {orderId, total, publicKey}
 
   Browser->>Browser: Customer enters card in Unzer UI Component
@@ -231,7 +245,7 @@ sequenceDiagram
   Browser->>API: POST /checkout/pay {orderId, method=CARD, typeId}
   API->>Unzer: authorize(amount, typeId, returnUrl)
   Unzer-->>API: {paymentId, redirectUrl, status=PENDING}
-  API->>API: Order → AWAITING_PAYMENT
+  API->>API: Record payment (AWAITING_CONFIRMATION)
   API-->>Browser: {redirectUrl, action=REDIRECT}
 
   Browser->>Unzer: 3DS redirect
