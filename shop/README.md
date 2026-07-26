@@ -29,7 +29,7 @@ mvn spring-boot:run
 
 ---
 
-## Interview Setup (full payment flow)
+## Setup (full payment flow)
 
 **Step 1 — Start ngrok** (Terminal 1, leave it running)
 ```bash
@@ -53,6 +53,14 @@ mvn spring-boot:run
 ```
 
 The app auto-loads `application-local.yml` and registers the webhook with Unzer on startup. Open `http://localhost:8080/checkout.html` to demo.
+
+---
+
+## Demo Screenshots
+
+![Checkout Page](docs/images/1.png)
+![Payment Flow](docs/images/2.png)
+![API Collection (Postman)](docs/images/test.png)
 
 ---
 
