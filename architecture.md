@@ -350,29 +350,31 @@ Think of it like this: the app is packed into a Docker container and handed to A
 
 ```mermaid
 graph TB
-    Customer["👤 Customer\nbrowses shop, pays"]
+    Customer["👤 Customer"]
 
-    subgraph aws["Our app running on AWS"]
-        CDN["CloudFront + S3\n── serves checkout.html ──\nfast, cached near customer"]
-        ALB["Load Balancer\n── front door ──\nreceives every request"]
-        ECS["ECS Fargate\n── our Spring Boot app ──\nhandles catalog, cart,\norders, payments"]
-        RDS["PostgreSQL Database\n── RDS ──\nstores orders, customers,\npayments, inventory"]
-        Redis["Redis Cache\n── ElastiCache ──\ncaches product list\nso DB isn't hit every time"]
-        Secrets["Secrets Manager\nstores Unzer API key,\nDB password, JWT secret\n── never in code ──"]
-        Logs["CloudWatch\nlogs every request\nalerts if something breaks"]
+    subgraph aws["Our Unzer Shop app running on AWS"]
+        CDN["CloudFront + S3\n(checkout.html)"]
+        ALB["Load Balancer\n(front door)"]
+        ECS["ECS Fargate\n(our Spring Boot app:\ncatalog · cart · order ·\npayment · webhook)"]
+        RDS["PostgreSQL\n(orders, payments,\ninventory, customers)"]
+        Redis["Redis\n(product catalog cache)"]
+        Secrets["Secrets Manager\n(Unzer key, DB pwd, JWT)"]
+        Logs["CloudWatch\n(logs + alerts)"]
     end
 
-    Unzer["💳 Unzer\ntakes the payment\nsends webhook when done"]
+    Unzer["💳 Unzer\n(payment gateway)"]
 
-    Customer -->|"1 — opens checkout page"| CDN
-    Customer -->|"2 — browse / cart / checkout"| ALB
-    ALB -->|"3 — routes to app"| ECS
-    ECS -->|"4 — reads product cache"| Redis
-    ECS -->|"5 — saves order & payment"| RDS
-    ECS -->|"6 — reads secrets on startup"| Secrets
-    ECS -->|"7 — send logs"| Logs
-    ECS -->|"8 — initiate payment"| Unzer
-    Unzer -->|"9 — webhook: payment confirmed"| ALB
+    Customer -->|"1 — load checkout.html"| CDN
+    Customer -->|"2 — GET /api/products (browse)"| ALB
+    Customer -->|"3 — POST /api/checkout/initiate + /pay"| ALB
+    ALB -->|"4 — routes to app"| ECS
+    ECS -->|"5 — cache product reads"| Redis
+    ECS -->|"6 — save order + reserve stock"| RDS
+    ECS -->|"7 — read Unzer key on startup"| Secrets
+    ECS -->|"8 — send logs"| Logs
+    ECS -->|"9 — authorize / charge"| Unzer
+    Unzer -->|"10 — POST /api/webhooks/unzer"| ALB
+    Customer -->|"11 — poll GET /api/checkout/status"| ALB
 ```
 
 **What each piece does in plain English:**
