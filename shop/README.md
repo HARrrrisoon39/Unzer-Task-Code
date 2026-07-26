@@ -54,6 +54,12 @@ mvn spring-boot:run
 
 The app auto-loads `application-local.yml` and registers the webhook with Unzer on startup. Open `http://localhost:8080/checkout.html` to demo.
 
+### Demo Screenshots
+
+![Checkout Page](docs/images/1.png)
+![Payment Flow](docs/images/2.png)
+![API Collection (Postman)](docs/images/test.png)
+
 ---
 
 ## End-to-End Flow (PowerShell)
