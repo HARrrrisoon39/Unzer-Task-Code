@@ -99,7 +99,9 @@
   <script type="module" src="https://static-v2.unzer.com/v2/ui-components/index.js"></script>
   <script>
     // Session token identifies the guest cart; JWT identifies the user.
-    const SESSION = 'web-' + Math.random().toString(36).slice(2);
+    // Persist it so a page reload keeps the same cart.
+    let SESSION = localStorage.getItem('shop-session');
+    if (!SESSION) { SESSION = 'web-' + Math.random().toString(36).slice(2); localStorage.setItem('shop-session', SESSION); }
     let token = null, orderId = null, publicKey = null, email = null;
 
     const $ = id => document.getElementById(id);
@@ -128,6 +130,7 @@
       $('shop-section').classList.remove('hidden');
       showStatus('Logged in — JWT token stored and sent on every request.', 'success');
       loadProducts();
+      loadCart();
     }
     $('btn-register').addEventListener('click', () => auth('register'));
     $('btn-login').addEventListener('click', () => auth('login'));
@@ -156,13 +159,18 @@
 
     // ── CART ────────────────────────────────────────────────────────
     async function addToCart(v) {
-      const res = await fetch('/api/cart/items', {
-        method: 'POST', headers: headers(),
-        body: JSON.stringify({ variantId: v.id, sku: v.sku, name: v.name, quantity: 1, unitPrice: v.price, currency: v.currency })
-      });
-      const cart = await res.json();
-      if (!res.ok) { showStatus(cart.message || 'Add to cart failed', 'error'); return; }
-      renderCart(cart);
+      try {
+        const res = await fetch('/api/cart/items', {
+          method: 'POST', headers: headers(),
+          body: JSON.stringify({ variantId: v.id, sku: v.sku, name: v.name, quantity: 1, unitPrice: v.price, currency: v.currency })
+        });
+        const cart = await res.json();
+        if (!res.ok) { showStatus(cart.message || 'Add to cart failed', 'error'); return; }
+        renderCart(cart);
+        showStatus('Added ' + v.name + ' to cart', 'success');
+      } catch (e) {
+        showStatus('Add to cart error: ' + e.message, 'error');
+      }
     }
     async function loadCart() {
       const res = await fetch('/api/cart', { headers: headers(false) });
