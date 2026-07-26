@@ -396,8 +396,6 @@ graph TB
 
 **Secrets:** Unzer private key, DB password, JWT secret — all stored in Secrets Manager. ECS pulls them at startup. They never appear in code, `.env` files, or the pipeline logs.
 
-**Observability:** Every log line includes `orderId` and `paymentId` so you can trace any order end-to-end. CloudWatch alerts fire if payment failure rate exceeds 5% or checkout takes longer than 2 seconds.
-
 ---
 
 ## 10. Security
