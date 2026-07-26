@@ -279,26 +279,24 @@ WHERE variant_id = :variantId
   AND available  >= :qty             -- fails if not enough stock
 ```
 
-This is one single database update that does everything at once: it lowers `available`, raises `reserved`, and bumps `version` — but **only if** the version hasn't changed and there's enough stock. If either check fails, nothing happens (0 rows updated).
+One single update lowers `available`, raises `reserved`, and bumps `version` — but **only if** the version is unchanged and stock is enough. If it updates 0 rows:
+- **Someone grabbed it first** (version changed) → retry 3×, then `ConcurrentReservationException`.
+- **Not enough stock** → caught before the update, throws `InsufficientStockException` immediately.
 
-What happens when it returns 0 rows:
-- **Someone else grabbed it first** (version changed) → retry up to 3 times, then throw `ConcurrentReservationException`.
-- **Not enough stock** → caught by a check *before* the update, throws `InsufficientStockException` right away (no retry).
-
-Separately, a background job runs **every 60 seconds** and frees up any stock still `RESERVED` past its expiry — so abandoned carts don't hold stock forever. Paid orders are already `CONFIRMED`, so the job never touches them.
+A background job every 60 seconds frees stock still `RESERVED` past its expiry (abandoned carts). Paid orders are `CONFIRMED`, so it leaves them alone.
 
 ### Idempotency and consistency
 
-Any step can fail on its own — Unzer can time out, the DB can fail mid-write, a webhook can arrive twice. Here's how each case recovers:
+Any step can fail on its own — Unzer times out, the DB fails mid-write, a webhook arrives twice. How each recovers:
 
 | What can go wrong | How we handle it |
 |---|---|
-| Same webhook arrives twice | Before saving, we check if we've already seen this event. If yes, skip it and return 200. (A DB unique rule is the backup safety net.) |
-| Webhook arrives before the browser comes back | The webhook sets the order to PAID first; the browser's return page just reads the current status |
-| DB fails right after payment succeeds | Unzer retries the webhook; the idempotency key stops a double-charge; the order finishes on the retry |
-| Reservation expires before payment finishes | The 60-second job frees the stock; already-confirmed reservations are left alone |
+| Same webhook twice | Check if we've seen this event; if yes, skip and return 200 (DB unique rule is the backup) |
+| Webhook arrives before browser returns | Webhook sets order to PAID first; the return page just reads current status |
+| DB fails after payment succeeds | Unzer retries the webhook; idempotency key stops a double-charge; order finishes on retry |
+| Reservation expires before payment finishes | The 60-second job frees the stock; confirmed reservations are untouched |
 
-Every raw webhook is saved to `payment_event` **before** we process it — so if processing fails, we still have the message and can replay it. It's our audit trail.
+Every raw webhook is saved **before** processing — so if processing fails, we can replay it. That's our audit trail.
 
 ---
 
