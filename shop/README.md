@@ -13,7 +13,7 @@ Requires Java 21 and Maven. Uses H2 in-memory DB — no Docker needed.
 
 ```bash
 cd shop
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 - Checkout page: `http://localhost:8080/checkout.html`
