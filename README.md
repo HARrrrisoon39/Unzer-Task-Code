@@ -9,9 +9,9 @@
 | Layer | Technology |
 |---|---|
 | Backend | Java 21 · Spring Boot 3 · Maven |
-| Database | H2 in-memory (dev) · Flyway migrations |
-| Payments | Unzer SDK — Credit Card, Wero, Open Banking |
-| Webhooks | ngrok tunnel → Unzer event confirmation |
+| Database | H2 in-memory (dev) |
+| Payments | Unzer SDK |
+| Webhooks | ngrok tunnel |
 | CI/CD | GitHub Actions → Docker → AWS ECR → ECS |
 
 ---
