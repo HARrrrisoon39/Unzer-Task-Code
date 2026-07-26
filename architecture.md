@@ -379,7 +379,7 @@ graph TB
 
 **CI/CD** (`.github/workflows/ci-cd.yml`): push → tests run on H2 → build Docker image → push to ECR → approve → ECS rolling deploy (zero downtime).
 
-**ECS task definition** (`infra/ecs-task-definition.json`): defines how the container runs on Fargate — CPU/memory, port, CloudWatch logging, health check, and the Secrets Manager references that get injected at startup.
+**ECS task definition** (`infra/ecs-task-definition.json`): defines how the container runs on Fargate — CPU/memory, port 8080, CloudWatch logging, health check (`/actuator/health`), and the six Secrets Manager references (DB credentials, Unzer keys, JWT secret) injected at startup. The CI/CD pipeline replaces the `image` field at deploy time; `ACCOUNT_ID` placeholders are environment-specific.
 
 **Secrets:** Unzer key, DB password, JWT secret live in Secrets Manager; ECS pulls them at startup — never in code or logs.
 
