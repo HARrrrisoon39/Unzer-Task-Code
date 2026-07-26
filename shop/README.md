@@ -63,7 +63,6 @@ The app auto-loads `application-local.yml` and registers the webhook with Unzer 
 Open the Postman collection to test all endpoints:
 👉 [Unzer Shop API — Postman Collection](https://harirajan2611-3545966.postman.co/workspace/Unzer~3f17ffb5-d918-48a0-ac22-1835f8432cb5/collection/56911596-122224fb-4f08-4aca-b81b-e4a1f4ba764b?action=share&creator=56911596&active-environment=56911596-5148d445-ba3d-4eab-8980-94a8bb724076)
 
-The collection includes 8 pre-built requests (Register → Login → Browse Products → Add to Cart → View Cart → Initiate Checkout → Pay with Credit Card → Simulate Webhook) with the `Unzer Shop - Local (ngrok)` environment pre-configured.
 
 ### 4. H2 In-Memory Database
 
