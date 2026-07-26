@@ -386,24 +386,23 @@ graph TB
 
 **Scaling — two different problems:**
 
-- **Product browsing** (`GET /api/products`) — millions of reads, same data. Solved by CloudFront cache + Redis. Most requests never reach the app.
-- **Checkout** (`POST /checkout`) — few requests but each writes to DB. Solved by running more ECS container copies behind the ALB.
+- **Browsing** (`GET /api/products`) — huge traffic, same data → CloudFront + Redis cache absorb it; most requests never hit the app.
+- **Checkout** (`POST /checkout`) — fewer requests, each writes to DB → run more ECS copies behind the ALB.
 
-**CI/CD pipeline** (see `.github/workflows/ci-cd.yml`):
-1. PR opened → tests run automatically on H2 (no real DB needed)
-2. PR merged to main → Docker image built and pushed to ECR
-3. Manual approval click → ECS rolling deploy (new containers start before old ones stop, zero downtime)
+**CI/CD** (`.github/workflows/ci-cd.yml`): push → tests run on H2 → build Docker image → push to ECR → approve → ECS rolling deploy (zero downtime).
 
-**Secrets:** Unzer private key, DB password, JWT secret — all stored in Secrets Manager. ECS pulls them at startup. They never appear in code, `.env` files, or the pipeline logs.
+**Secrets:** Unzer key, DB password, JWT secret live in Secrets Manager; ECS pulls them at startup — never in code or logs.
+
+**Observability:** every log line carries `orderId`/`paymentId`; CloudWatch alerts if payment failures exceed 5% or checkout is slower than 2s.
 
 ---
 
 ## 10. Security
 
-- **No card data on our server** — Unzer UI Components handle card input in the browser and return only a `typeId` token. We never see the card number; this keeps the app out of PCI scope.
-- **JWT auth** — stateless signed tokens. Several endpoint groups are public (no token): guest cart (`/api/cart/**`) and guest checkout (`/api/checkout/**`), product browsing (`GET /api/products/**`), authentication (`/api/auth/**`), webhooks (`/api/webhooks/**`), the health actuator (`/actuator/health`), the H2 console (`/h2-console/**`), and static files. All other endpoints require a valid token.
-- **Customer vs admin roles** — `role` column on `Customer`; the JWT filter puts a `ROLE_<role>` authority into the security context, but `SecurityConfig` does not yet restrict any admin path to the `ADMIN` role (the filter chain only separates public paths from `anyRequest().authenticated()`). Admin catalog CRUD endpoints are designed but role enforcement is not yet wired in the vertical slice.
-- **API key** — loaded from Secrets Manager at runtime, never hardcoded.
+- **No card data on our server** — Unzer UI Components take the card in the browser and return only a `typeId` token. We never see the card number → out of PCI scope.
+- **JWT auth** — public (no token): cart, checkout, product browsing, auth, webhooks, health, static files. Everything else needs a valid token.
+- **Roles** — `role` is in the JWT, but admin-path enforcement (`@PreAuthorize`) isn't wired yet.
+- **API key** — from Secrets Manager at runtime, never hardcoded.
 - **HTTPS everywhere** — ALB rejects plain HTTP.
 
 ---
@@ -412,17 +411,16 @@ graph TB
 
 | Decision | Trade-off |
 |---|---|
-| Modular monolith | Simpler than microservices now; each module can be extracted into its own service later if needed |
-| Optimistic locking | Works well at normal load; under extreme flash-sale concurrency a queue-based checkout would be more reliable |
-| Webhook-only confirmation | Slightly slower UX — customer polls for final status; eliminates the redirect-before-webhook race condition |
-| Single shared DB | No distributed transactions needed; modules can be split with their own DB later if they need to scale independently |
-| Card refunds not yet supported | Card uses `authorize` (no charge ID at initiation); refund throws clearly if attempted — needs a capture step wired first |
+| Modular monolith | Simpler now; each module can be split into a service later |
+| Optimistic locking | Great at normal load; a queue would beat it in an extreme flash sale |
+| Webhook-only confirmation | Slightly slower UX (customer polls) but kills the redirect-before-webhook race |
+| Single shared DB | No distributed transactions; can split per-module later |
+| No card refunds yet | Card uses `authorize` (no charge ID); refund needs a capture step first |
 
-**Not built in the vertical slice (by design):**
-- Product categories and search — catalog read model is there; category table and search endpoint not added
-- Full order lifecycle transitions (`FULFILLING → SHIPPED → COMPLETED`) — states are defined in the enum; no fulfilment service wired
-- Admin role enforcement on catalog CRUD endpoints — role distinction exists in JWT; `@PreAuthorize` guards not yet applied
-- Cart availability check at add-item time — stock checked at checkout reservation, not at cart add
-- Email notifications — stubbed (no SES wiring)
+**Not built (by design):**
+- Product categories & search
+- Full order lifecycle (`FULFILLING → SHIPPED → COMPLETED`)
+- Admin role enforcement (`@PreAuthorize` guards)
+- Cart availability check at add-time (checked at checkout instead)
+- Email notifications
 
-**With more time:** Testcontainers integration tests, a nightly reconciliation job comparing our payment records against Unzer's API, and a circuit breaker around Unzer API calls.
