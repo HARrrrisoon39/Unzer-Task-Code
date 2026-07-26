@@ -51,7 +51,7 @@ graph TB
 
     subgraph shop["Shop System"]
         API["Spring Boot API\n(Java 21)\nAll business logic:\ncatalog · cart · inventory\norder · payment · customer · webhook"]
-        DB["PostgreSQL\n(RDS / H2 dev)\nSingle shared database\none schema per module"]
+        DB["PostgreSQL\n(RDS / H2 dev)\nSingle shared database\nsingle shared schema\n(modules separated by package)"]
     end
 
     Unzer["💳 Unzer\nPayment gateway"]
@@ -62,7 +62,7 @@ graph TB
     Unzer -->|"Webhook events (HTTPS POST /api/webhooks/unzer)"| API
 ```
 
-**Why a single database?** All modules live in one process and share one PostgreSQL instance. Separate databases per module would require distributed transactions (two-phase commit or sagas) to keep order + inventory + payment consistent — significant complexity for no real benefit at this scale. Modules reference each other only by foreign key ID, never by joining across schemas.
+**Why a single database?** All modules live in one process and share one PostgreSQL instance. Separate databases per module would require distributed transactions (two-phase commit or sagas) to keep order + inventory + payment consistent — significant complexity for no real benefit at this scale. Modules reference each other only by ID, never by JPA relationship joins across module boundaries.
 
 ---
 
@@ -192,9 +192,9 @@ erDiagram
 **Key decisions:**
 - Money stored as `DECIMAL(19,4)` — never float.
 - `INVENTORY.version` enables optimistic locking (see §5).
-- `PAYMENT.idempotency_key = orderId + ":" + method` — unique DB constraint prevents double-charging on retries.
+- `PAYMENT.idempotency_key = orderId + ":" + method` — `PaymentService.initiate` looks up this key first (`findByIdempotencyKey(...).orElseGet(...)`) and returns the existing payment on a retry instead of calling Unzer again, which is what prevents double-charging. The unique DB constraint is a backstop against duplicate payment rows under concurrency.
 - `PAYMENT.unzer_charge_id` — stored at initiation for Wero and Open Banking; used when processing refunds.
-- `PAYMENT_EVENT(unzer_payment_id, event_type)` — unique constraint silently drops duplicate webhooks.
+- `PAYMENT_EVENT(unzer_payment_id, event_type)` — unique constraint is a backstop; the webhook handler dedupes with an explicit existence check before insert (see §5).
 
 ---
 
@@ -209,12 +209,11 @@ stateDiagram-v2
   [*] --> AWAITING_PAYMENT : POST /checkout/initiate (order created, stock reserved)
   AWAITING_PAYMENT --> PAID : Webhook COMPLETED
   AWAITING_PAYMENT --> PAYMENT_FAILED : Webhook CANCELED
-  PAID --> REFUNDED : Refund requested
 ```
 
 Internally the order is first written as `CREATED`, then transitioned to `AWAITING_PAYMENT` within the same `/checkout/initiate` call once stock is reserved — both steps are recorded in `order_status_history`.
 
-Future states (`FULFILLING`, `SHIPPED`, `COMPLETED`, `CANCELLED`) are defined in the enum but not yet wired to any endpoint.
+Future states (`FULFILLING`, `SHIPPED`, `COMPLETED`, `CANCELLED`) are defined in the enum but not yet wired to any endpoint. `REFUNDED` is similar: `PaymentService.refund(...)` implements the PAID → REFUNDED transition, but it is not invoked by any controller, scheduler, or other caller, so the transition cannot currently be triggered at runtime.
 
 ### Request sequence (Credit Card example)
 
@@ -243,7 +242,7 @@ sequenceDiagram
   API-->>Browser: "Poll /checkout/status for result"
 
   Unzer->>API: POST /webhooks/unzer {event, paymentId}
-  API->>API: Deduplicate (payment_event unique constraint)
+  API->>API: Deduplicate (existsByUnzerPaymentIdAndEventType check, early 200)
   API->>Unzer: fetchPayment(paymentId) — verify real state
   Unzer-->>API: COMPLETED
   API->>API: Order → PAID, confirm stock reservations
@@ -283,7 +282,7 @@ WHERE variant_id = :variantId
   AND available  >= :qty             -- fails if not enough stock
 ```
 
-If `rowsUpdated = 0`, a concurrent buyer won or stock ran out. The service retries up to 3 times, then throws `ConcurrentReservationException`. A `@Scheduled` job runs every 60 seconds and releases any reservation whose `status = 'RESERVED'` and `expires_at < now` — returning stock for abandoned carts. Reservations for paid orders are already `CONFIRMED`, so the job leaves them alone.
+If the atomic update returns `rowsUpdated = 0` because a concurrent transaction bumped the version first (a version conflict, even though stock was sufficient), the service retries up to 3 times, then throws `ConcurrentReservationException`. The stock-ran-out case is handled separately: a pre-check before the atomic update throws `InsufficientStockException` immediately, with no retry. A `@Scheduled` job runs every 60 seconds and releases any reservation whose `status = 'RESERVED'` and `expires_at < now` — returning stock for abandoned carts. Reservations for paid orders are already `CONFIRMED`, so the job leaves them alone.
 
 ### Idempotency and consistency
 
@@ -291,7 +290,7 @@ Any step can fail independently — Unzer can time out, the DB can fail mid-writ
 
 | Failure | Recovery |
 |---|---|
-| Webhook arrives twice | `payment_event(unzer_payment_id, event_type)` unique constraint rejects the duplicate; handler returns 200 immediately |
+| Webhook arrives twice | Handler checks `payment_event` for an existing `(unzer_payment_id, event_type)` row via a pre-insert existence query (`existsByUnzerPaymentIdAndEventType`); if found it skips processing and returns 200 immediately. The unique constraint is a passive backstop against races, not the primary dedup path |
 | Webhook arrives before browser redirect | Webhook sets order to PAID first; `/checkout/return` just reads the current status |
 | DB fails after payment succeeds | Unzer retries the webhook; `idempotency_key` constraint prevents double-charge; order transitions on retry |
 | Reservation expires before payment completes | Expiry job releases it; `CONFIRMED` reservations are untouched |
@@ -313,7 +312,7 @@ Each module owns its tables exclusively. No module queries another module's tabl
 | `payment` | `payment`, `payment_event` | `webhook` (via `PaymentService`) |
 | `customer` | `customer` | `order` (by `customer_id`), `cart` (by `customer_id`) |
 
-Cross-module references are by ID only — e.g. `payment.order_id` is a plain UUID column, not a JPA `@ManyToOne` join to `Order`. This means each module can evolve its schema independently without breaking others.
+Cross-module references are by ID only — e.g. `payment.order_id` is a plain UUID column, not a JPA `@ManyToOne` join to `Order`. This means each module can evolve its own tables independently without breaking others. (All tables live in one shared schema; the isolation comes from ID-only references and module-scoped table ownership, not separate database schemas.)
 
 ---
 
@@ -408,8 +407,8 @@ graph TB
 ## 10. Security
 
 - **No card data on our server** — Unzer UI Components handle card input in the browser and return only a `typeId` token. We never see the card number; this keeps the app out of PCI scope.
-- **JWT auth** — stateless signed tokens; guest checkout endpoints (`/api/checkout/**`) are public; all other endpoints require a valid token.
-- **Customer vs admin roles** — `role` column on `Customer`; `SecurityConfig` restricts admin paths to `ADMIN` role. Admin catalog CRUD endpoints are designed but not fully wired in the vertical slice.
+- **JWT auth** — stateless signed tokens. Several endpoint groups are public (no token): guest cart (`/api/cart/**`) and guest checkout (`/api/checkout/**`), product browsing (`GET /api/products/**`), authentication (`/api/auth/**`), webhooks (`/api/webhooks/**`), the health actuator (`/actuator/health`), the H2 console (`/h2-console/**`), and static files. All other endpoints require a valid token.
+- **Customer vs admin roles** — `role` column on `Customer`; the JWT filter puts a `ROLE_<role>` authority into the security context, but `SecurityConfig` does not yet restrict any admin path to the `ADMIN` role (the filter chain only separates public paths from `anyRequest().authenticated()`). Admin catalog CRUD endpoints are designed but role enforcement is not yet wired in the vertical slice.
 - **API key** — loaded from Secrets Manager at runtime, never hardcoded.
 - **HTTPS everywhere** — ALB rejects plain HTTP.
 
