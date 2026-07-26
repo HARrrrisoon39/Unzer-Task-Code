@@ -79,26 +79,6 @@ curl http://localhost:8080/api/checkout/status?orderId=<uuid>
 
 ---
 
-## What is Real vs. Stubbed
-
-| Feature | Status |
-|---|---|
-| Credit Card (3DS) | **Real** — Unzer SDK |
-| Wero (redirect) | **Stubbed** — designed, SDK class absent in v5.2.0 |
-| Open Banking (redirect) | **Stubbed** — designed, SDK class absent in v5.2.0 |
-| Webhook receiver + idempotency | **Real** |
-| Stock reservation (optimistic lock) | **Real** |
-| Order state machine | **Real** |
-| JWT auth + guest checkout | **Real** |
-| Stock release on payment failure | **Real** |
-| Refunds (Wero / Open Banking) | **Real** — Card needs a capture step first |
-| Email notifications | **Stubbed** |
-| Product categories / search | **Stubbed** |
-| Full order lifecycle (FULFILLING → SHIPPED → COMPLETED) | **Stubbed** — states defined, not wired |
-| Admin role enforcement | **Stubbed** — role in JWT, `@PreAuthorize` guards not applied |
-
----
-
 ## Sandbox Test Cards
 
 | Card | Number | Expiry | CVC |
