@@ -309,7 +309,6 @@ Each module owns its tables exclusively. No module queries another module's tabl
 | `payment` | `payment`, `payment_event` | `webhook` (via `PaymentService`) |
 | `customer` | `customer` | `order` (by `customer_id`), `cart` (by `customer_id`) |
 
-Cross-module references are by ID only — e.g. `payment.order_id` is a plain UUID column, not a JPA `@ManyToOne` join to `Order`. This means each module can evolve its own tables independently without breaking others. (All tables live in one shared schema; the isolation comes from ID-only references and module-scoped table ownership, not separate database schemas.)
 
 ---
 
