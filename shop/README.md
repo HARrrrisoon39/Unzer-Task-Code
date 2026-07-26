@@ -54,44 +54,8 @@ mvn spring-boot:run
 
 The app auto-loads `application-local.yml` and registers the webhook with Unzer on startup. Open `http://localhost:8080/checkout.html` to demo.
 
-### Demo Screenshots
-
-![Checkout Page](docs/images/1.png)
-![Payment Flow](docs/images/2.png)
-![API Collection (Postman)](docs/images/test.png)
-
 ---
 
-## End-to-End Flow (PowerShell)
-
-```powershell
-# 1. Register
-curl -s -X POST http://localhost:8080/api/auth/register -H "Content-Type: application/json" -d '{\"email\":\"test@example.com\",\"password\":\"secret123\"}'
-# → {"token":"eyJ..."}
-
-# 2. Browse products
-curl http://localhost:8080/api/products
-
-# 3. Add to cart
-curl -s -X POST http://localhost:8080/api/cart/items -H "Content-Type: application/json" -H "X-Session-Token: my-session-123" -d '{\"variantId\":\"bbbbbbbb-0000-0000-0000-000000000001\",\"sku\":\"WIDGET-001-STD\",\"name\":\"Premium Widget Standard\",\"quantity\":1,\"unitPrice\":29.99,\"currency\":\"EUR\"}'
-
-# 4. Initiate checkout
-curl -s -X POST http://localhost:8080/api/checkout/initiate -H "Content-Type: application/json" -H "X-Session-Token: my-session-123" -d '{\"street\":\"Musterstrasse 1\",\"city\":\"Berlin\",\"country\":\"DE\",\"zip\":\"10115\"}'
-# → {"orderId":"<uuid>","total":29.99,"currency":"EUR","publicKey":"s-pub-xxx"}
-
-# 5. Pay with Credit Card (replace <uuid> and s-crd-xxx with real values)
-curl -s -X POST http://localhost:8080/api/checkout/pay -H "Content-Type: application/json" -d '{\"orderId\":\"<uuid>\",\"method\":\"CARD\",\"typeId\":\"s-crd-xxx\"}'
-# → {"action":"REDIRECT","redirectUrl":"..."} or {"action":"NONE"}
-
-# 6. Simulate webhook (without ngrok)
-curl -s -X POST http://localhost:8080/api/webhooks/unzer -H "Content-Type: application/json" -d '{\"event\":\"payment.completed\",\"publicKey\":\"s-pub-xxx\",\"retrieveUrl\":\"https://sbx-api.unzer.com/v1/payments/s-pay-1\",\"paymentId\":\"s-pay-1\"}'
-
-# 7. Check order status
-curl http://localhost:8080/api/checkout/status?orderId=<uuid>
-# → {"status":"PAID"}
-```
-
----
 
 ## Sandbox Test Cards
 
