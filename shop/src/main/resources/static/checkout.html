@@ -2,179 +2,241 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>Checkout — Unzer Shop Demo</title>
+  <title>Unzer Shop — Full Demo</title>
   <style>
-    body { font-family: sans-serif; max-width: 560px; margin: 60px auto; padding: 0 16px; }
-    h1   { font-size: 1.4rem; margin-bottom: 24px; }
-    .field { margin-bottom: 12px; }
-    label { display: block; font-size: .85rem; margin-bottom: 4px; }
-    input, select { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-    button { width: 100%; padding: 12px; background: #fc1154; color: #fff; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; margin-top: 16px; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
-    #status-msg { margin-top: 16px; padding: 12px; border-radius: 4px; display: none; }
-    #status-msg.info    { background: #e8f4fd; border: 1px solid #90caf9; }
-    #status-msg.success { background: #e8f5e9; border: 1px solid #a5d6a7; }
-    #status-msg.error   { background: #ffebee; border: 1px solid #ef9a9a; }
-    #card-section, #redirect-section { display: none; }
+    body { font-family: sans-serif; max-width: 640px; margin: 30px auto; padding: 0 16px; color:#222; }
+    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    h2 { font-size: 1.1rem; margin: 24px 0 10px; border-bottom:2px solid #fc1154; padding-bottom:4px; }
+    .field { margin-bottom: 10px; }
+    label { display:block; font-size:.8rem; margin-bottom:3px; color:#555; }
+    input, select { width:100%; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px; }
+    button { padding:10px 16px; background:#fc1154; color:#fff; border:none; border-radius:4px; font-size:.95rem; cursor:pointer; margin-top:10px; }
+    button.secondary { background:#555; }
+    button:disabled { background:#ccc; cursor:not-allowed; }
+    .card { border:1px solid #ddd; border-radius:8px; padding:16px; margin-bottom:16px; }
+    .hidden { display:none; }
+    .product { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding:8px 0; }
+    .product small { color:#888; }
+    .banner { background:#f5f5f5; border:1px solid #ddd; border-radius:6px; padding:12px; margin:12px 0; }
+    .banner .row { display:flex; justify-content:space-between; font-size:.88rem; margin:3px 0; }
+    .oid { font-family:monospace; font-size:.78rem; word-break:break-all; }
+    #status-msg { margin-top:14px; padding:10px; border-radius:4px; display:none; }
+    #status-msg.info { background:#e8f4fd; border:1px solid #90caf9; }
+    #status-msg.success { background:#e8f5e9; border:1px solid #a5d6a7; }
+    #status-msg.error { background:#ffebee; border:1px solid #ef9a9a; }
+    .pill { font-size:.72rem; background:#eee; border-radius:10px; padding:2px 8px; }
+    .loggedin { color:#2e7d32; font-size:.85rem; }
   </style>
 </head>
 <body>
-  <h1>Unzer Shop — Demo Checkout</h1>
-
-  <!-- Step 1: shipping & method selection -->
-  <div id="step-initiate">
-    <div class="field">
-      <label>Payment method</label>
-      <select id="method">
-        <option value="CARD">Credit / Debit Card</option>
-        <option value="WERO">Wero</option>
-        <option value="OPEN_BANKING">Open Banking</option>
-      </select>
-    </div>
-    <div class="field"><label>Street</label><input id="street" value="Musterstraße 1"/></div>
-    <div class="field"><label>City</label><input id="city" value="Berlin"/></div>
-    <div class="field"><label>Country</label><input id="country" value="DE"/></div>
-    <div class="field"><label>ZIP</label><input id="zip" value="10115"/></div>
-    <button id="btn-initiate">Continue to payment</button>
-  </div>
-
-  <!-- Step 2a: card tokenization via Unzer UI Components -->
-  <div id="card-section">
-    <h2 style="font-size:1.1rem">Enter card details</h2>
-    <!-- publicKey injected by JS after /initiate response -->
-    <unzer-payment id="unzer-payment" locale="de-DE">
-      <unzer-card></unzer-card>
-    </unzer-payment>
-    <unzer-checkout id="unzer-checkout">
-      <button type="submit" id="btn-pay-card">Pay now</button>
-    </unzer-checkout>
-  </div>
-
-  <!-- Step 2b: redirect methods (Wero / Open Banking) — just a button -->
-  <div id="redirect-section">
-    <p>You will be redirected to complete the payment.</p>
-    <button id="btn-pay-redirect">Pay with <span id="method-label"></span></button>
-  </div>
-
+  <h1>Unzer Shop</h1>
+  <p style="color:#666;font-size:.9rem;">Full end-to-end demo: register → login → cart → checkout → pay.</p>
   <div id="status-msg"></div>
 
-  <!-- Unzer UI Components — loaded only when card is selected -->
+  <!-- ── SECTION 1: AUTH ─────────────────────────────────────────── -->
+  <div id="auth-section">
+    <h2>1. Account</h2>
+    <div class="card">
+      <div class="field"><label>Email</label><input id="email" value="demo@example.com"/></div>
+      <div class="field"><label>Password</label><input id="password" type="password" value="secret123"/></div>
+      <button id="btn-register">Register</button>
+      <button id="btn-login" class="secondary">Login</button>
+    </div>
+  </div>
+
+  <!-- ── SECTION 2: SHOP (hidden until logged in) ────────────────── -->
+  <div id="shop-section" class="hidden">
+    <p class="loggedin">✓ Logged in as <span id="who"></span> <span class="pill">JWT active</span></p>
+
+    <h2>2. Products</h2>
+    <div id="products" class="card">Loading…</div>
+
+    <h2>3. Cart</h2>
+    <div id="cart" class="card">Cart is empty.</div>
+
+    <h2>4. Checkout</h2>
+    <div class="card">
+      <div class="field">
+        <label>Payment method</label>
+        <select id="method">
+          <option value="CARD">Credit / Debit Card</option>
+          <option value="WERO">Wero</option>
+          <option value="OPEN_BANKING">Open Banking</option>
+        </select>
+      </div>
+      <div class="field"><label>Street</label><input id="street" value="Musterstrasse 1"/></div>
+      <div class="field"><label>City</label><input id="city" value="Berlin"/></div>
+      <div class="field"><label>Country</label><input id="country" value="DE"/></div>
+      <div class="field"><label>ZIP</label><input id="zip" value="10115"/></div>
+      <button id="btn-checkout" disabled>Create order</button>
+    </div>
+
+    <!-- Order banner -->
+    <div id="order-banner" class="banner hidden">
+      <div class="row"><strong>Order ID</strong><span class="oid" id="b-order-id">—</span></div>
+      <div class="row"><strong>Total</strong><span id="b-total">—</span></div>
+      <div class="row"><strong>Status</strong><span id="b-status">—</span></div>
+    </div>
+
+    <!-- Card payment -->
+    <div id="card-section" class="card hidden">
+      <h2 style="border:none;margin-top:0;">5. Enter Card</h2>
+      <unzer-payment id="unzer-payment" locale="de-DE">
+        <unzer-card></unzer-card>
+      </unzer-payment>
+      <unzer-checkout id="unzer-checkout">
+        <button type="submit" id="btn-pay-card">Pay now</button>
+      </unzer-checkout>
+    </div>
+
+    <!-- Redirect payment -->
+    <div id="redirect-section" class="card hidden">
+      <p>You will be redirected to complete the payment.</p>
+      <button id="btn-pay-redirect">Pay with <span id="method-label"></span></button>
+    </div>
+  </div>
+
   <script type="module" src="https://static-v2.unzer.com/v2/ui-components/index.js"></script>
   <script>
-    const SESSION = 'demo-session-' + Math.random().toString(36).slice(2);
-    let orderId = null;
-    let publicKey = null;
+    // Session token identifies the guest cart; JWT identifies the user.
+    const SESSION = 'web-' + Math.random().toString(36).slice(2);
+    let token = null, orderId = null, publicKey = null, email = null;
 
-    function showStatus(msg, type) {
-      const el = document.getElementById('status-msg');
-      el.textContent = msg;
-      el.className = type;
-      el.style.display = 'block';
+    const $ = id => document.getElementById(id);
+    function showStatus(msg, type) { const el=$('status-msg'); el.textContent=msg; el.className=type; el.style.display='block'; }
+
+    // Common headers: JWT + session token on every call
+    function headers(json=true) {
+      const h = { 'Authorization': 'Bearer ' + token, 'X-Session-Token': SESSION };
+      if (json) h['Content-Type'] = 'application/json';
+      return h;
     }
 
-    // ── Step 1: initiate checkout ──────────────────────────────────────────────
-    document.getElementById('btn-initiate').addEventListener('click', async () => {
-      const method = document.getElementById('method').value;
-      document.getElementById('btn-initiate').disabled = true;
-
-      // Add a demo item to cart first
-      await fetch('/api/cart/items', {
+    // ── AUTH ────────────────────────────────────────────────────────
+    async function auth(path) {
+      email = $('email').value.trim();
+      const res = await fetch('/api/auth/' + path, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Session-Token': SESSION },
-        body: JSON.stringify({
-          variantId: 'bbbbbbbb-0000-0000-0000-000000000001',
-          sku: 'WIDGET-001-STD', name: 'Premium Widget Standard',
-          quantity: 1, unitPrice: 29.99, currency: 'EUR'
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: $('password').value })
       });
-
-      const res = await fetch('/api/checkout/initiate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Session-Token': SESSION },
-        body: JSON.stringify({
-          street: document.getElementById('street').value,
-          city:   document.getElementById('city').value,
-          country: document.getElementById('country').value,
-          zip:    document.getElementById('zip').value
-        })
-      });
-
       const data = await res.json();
-      if (!res.ok) { showStatus(data.message || 'Checkout failed', 'error'); return; }
+      if (!res.ok) { showStatus(data.message || (path + ' failed'), 'error'); return; }
+      token = data.token;
+      $('who').textContent = email;
+      $('auth-section').classList.add('hidden');
+      $('shop-section').classList.remove('hidden');
+      showStatus('Logged in — JWT token stored and sent on every request.', 'success');
+      loadProducts();
+    }
+    $('btn-register').addEventListener('click', () => auth('register'));
+    $('btn-login').addEventListener('click', () => auth('login'));
 
-      orderId = data.orderId;
-      publicKey = data.publicKey;
-      document.getElementById('step-initiate').style.display = 'none';
+    // ── PRODUCTS ────────────────────────────────────────────────────
+    async function loadProducts() {
+      const res = await fetch('/api/products');
+      const products = await res.json();
+      const box = $('products');
+      box.innerHTML = '';
+      for (const p of products) {
+        const vres = await fetch('/api/products/' + p.id + '/variants');
+        const variants = await vres.json();
+        for (const v of variants) {
+          const row = document.createElement('div');
+          row.className = 'product';
+          row.innerHTML = `<div><strong>${v.name}</strong><br><small>${v.sku} · ${v.price} ${v.currency}</small></div>`;
+          const btn = document.createElement('button');
+          btn.textContent = 'Add to cart';
+          btn.onclick = () => addToCart(v);
+          row.appendChild(btn);
+          box.appendChild(row);
+        }
+      }
+    }
+
+    // ── CART ────────────────────────────────────────────────────────
+    async function addToCart(v) {
+      const res = await fetch('/api/cart/items', {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify({ variantId: v.id, sku: v.sku, name: v.name, quantity: 1, unitPrice: v.price, currency: v.currency })
+      });
+      const cart = await res.json();
+      if (!res.ok) { showStatus(cart.message || 'Add to cart failed', 'error'); return; }
+      renderCart(cart);
+    }
+    async function loadCart() {
+      const res = await fetch('/api/cart', { headers: headers(false) });
+      if (res.ok) renderCart(await res.json());
+    }
+    function renderCart(cart) {
+      const box = $('cart');
+      if (!cart.items || !cart.items.length) { box.innerHTML = 'Cart is empty.'; $('btn-checkout').disabled = true; return; }
+      box.innerHTML = cart.items.map(i => `<div class="product"><div>${i.name} × ${i.quantity}</div><div>${(i.unitPrice*i.quantity).toFixed(2)} ${i.currency}</div></div>`).join('')
+        + `<div class="product"><strong>Total</strong><strong>${cart.total} EUR</strong></div>`;
+      $('btn-checkout').disabled = false;
+    }
+
+    // ── CHECKOUT (Step 6) ───────────────────────────────────────────
+    $('btn-checkout').addEventListener('click', async () => {
+      const method = $('method').value;
+      $('btn-checkout').disabled = true;
+      const res = await fetch('/api/checkout/initiate', {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify({ street:$('street').value, city:$('city').value, country:$('country').value, zip:$('zip').value })
+      });
+      const data = await res.json();
+      if (!res.ok) { showStatus(data.message || 'Checkout failed', 'error'); $('btn-checkout').disabled=false; return; }
+      orderId = data.orderId; publicKey = data.publicKey;
+      $('b-order-id').textContent = orderId;
+      $('b-total').textContent = data.total + ' ' + data.currency;
+      $('b-status').textContent = 'AWAITING_PAYMENT';
+      $('order-banner').classList.remove('hidden');
 
       if (method === 'CARD') {
-        document.getElementById('card-section').style.display = 'block';
-        // Set publicKey on the Unzer component once it's defined
-        customElements.whenDefined('unzer-payment').then(() => {
-          document.getElementById('unzer-payment').setAttribute('publicKey', publicKey);
-        });
-        setupCardPayment();
+        $('card-section').classList.remove('hidden');
+        customElements.whenDefined('unzer-payment').then(() => $('unzer-payment').setAttribute('publicKey', publicKey));
+        setupCard();
       } else {
-        document.getElementById('method-label').textContent =
-          method === 'WERO' ? 'Wero' : 'Open Banking';
-        document.getElementById('redirect-section').style.display = 'block';
-        document.getElementById('btn-pay-redirect').addEventListener('click', () =>
-          initiatePayment(method, null));
+        $('method-label').textContent = method === 'WERO' ? 'Wero' : 'Open Banking';
+        $('redirect-section').classList.remove('hidden');
+        $('btn-pay-redirect').onclick = () => pay(method, null);
       }
     });
 
-    // ── Card: wire up Unzer UI Component submit handler ────────────────────────
-    function setupCardPayment() {
+    // ── PAY (Step 7) ────────────────────────────────────────────────
+    function setupCard() {
       customElements.whenDefined('unzer-payment').then(() => {
-        const checkout = document.getElementById('unzer-checkout');
-        checkout.onPaymentSubmit = async (response) => {
-          if (response.submitResponse && response.submitResponse.success) {
-            const typeId = response.submitResponse.data.id;
-            await initiatePayment('CARD', typeId);
-          } else {
-            showStatus('Card tokenization failed — check card details', 'error');
-          }
+        $('unzer-checkout').onPaymentSubmit = async (r) => {
+          if (r.submitResponse && r.submitResponse.success) pay('CARD', r.submitResponse.data.id);
+          else showStatus('Card tokenization failed — check card details', 'error');
         };
       });
     }
-
-    // ── Step 2: initiate payment ───────────────────────────────────────────────
-    async function initiatePayment(method, typeId) {
+    async function pay(method, typeId) {
       showStatus('Processing payment…', 'info');
       const res = await fetch('/api/checkout/pay', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
         body: JSON.stringify({ orderId, method, typeId })
       });
       const data = await res.json();
       if (!res.ok) { showStatus(data.message || 'Payment failed', 'error'); return; }
-
-      if (data.action === 'REDIRECT' && data.redirectUrl) {
-        window.location.href = data.redirectUrl;
-      } else {
-        pollStatus();
-      }
+      if (data.action === 'REDIRECT' && data.redirectUrl) window.location.href = data.redirectUrl;
+      else pollStatus();
     }
 
-    // ── Step 3: poll for final status after return from redirect ───────────────
+    // ── STATUS (Step 8/9) ───────────────────────────────────────────
     function pollStatus() {
-      const params = new URLSearchParams(window.location.search);
-      const oid = params.get('orderId') || orderId;
+      const oid = new URLSearchParams(location.search).get('orderId') || orderId;
       if (!oid) return;
-      const interval = setInterval(async () => {
+      const t = setInterval(async () => {
         const res = await fetch('/api/checkout/status?orderId=' + oid);
         const data = await res.json();
-        if (data.status === 'PAID' || data.status === 'COMPLETED') {
-          clearInterval(interval);
-          showStatus('Payment confirmed! Order ' + oid, 'success');
-        } else if (data.status === 'PAYMENT_FAILED' || data.status === 'CANCELLED') {
-          clearInterval(interval);
-          showStatus('Payment failed. Order status: ' + data.status, 'error');
-        }
+        $('b-status').textContent = data.status;
+        if (['PAID','COMPLETED'].includes(data.status)) { clearInterval(t); showStatus('Payment confirmed! Order ' + oid, 'success'); }
+        else if (['PAYMENT_FAILED','CANCELLED'].includes(data.status)) { clearInterval(t); showStatus('Payment failed: ' + data.status, 'error'); }
       }, 2000);
     }
-
-    // Auto-poll if this is a return-URL page
-    if (window.location.search.includes('orderId')) pollStatus();
+    if (location.search.includes('orderId')) pollStatus();
   </script>
 </body>
 </html>

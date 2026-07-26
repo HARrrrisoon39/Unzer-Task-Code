@@ -32,7 +32,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/webhooks/**").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/", "/checkout.html", "/*.html", "/*.css", "/*.js").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                        .requestMatchers("/api/cart/**").permitAll()       // guest cart allowed
                         .requestMatchers("/api/checkout/**").permitAll()   // guest checkout allowed
                         .anyRequest().authenticated()
                 )
