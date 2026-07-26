@@ -1,0 +1,44 @@
+{
+  "family": "unzer-shop",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn":      "arn:aws:iam::ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "unzer-shop",
+      "image": "ACCOUNT_ID.dkr.ecr.eu-central-1.amazonaws.com/unzer-shop:latest",
+      "portMappings": [
+        { "containerPort": 8080, "protocol": "tcp" }
+      ],
+      "environment": [
+        { "name": "SPRING_PROFILES_ACTIVE", "value": "postgres" }
+      ],
+      "secrets": [
+        { "name": "SPRING_DATASOURCE_URL",      "valueFrom": "arn:aws:secretsmanager:eu-central-1:ACCOUNT_ID:secret:shop/db-url" },
+        { "name": "SPRING_DATASOURCE_USERNAME",  "valueFrom": "arn:aws:secretsmanager:eu-central-1:ACCOUNT_ID:secret:shop/db-username" },
+        { "name": "SPRING_DATASOURCE_PASSWORD",  "valueFrom": "arn:aws:secretsmanager:eu-central-1:ACCOUNT_ID:secret:shop/db-password" },
+        { "name": "UNZER_PRIVATE_KEY",           "valueFrom": "arn:aws:secretsmanager:eu-central-1:ACCOUNT_ID:secret:shop/unzer-private-key" },
+        { "name": "UNZER_PUBLIC_KEY",            "valueFrom": "arn:aws:secretsmanager:eu-central-1:ACCOUNT_ID:secret:shop/unzer-public-key" },
+        { "name": "JWT_SECRET",                  "valueFrom": "arn:aws:secretsmanager:eu-central-1:ACCOUNT_ID:secret:shop/jwt-secret" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group":         "/ecs/unzer-shop",
+          "awslogs-region":        "eu-central-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command":     ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"],
+        "interval":    30,
+        "timeout":     5,
+        "retries":     3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

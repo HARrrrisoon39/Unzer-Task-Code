@@ -346,50 +346,60 @@ Cross-module references are by ID only — e.g. `payment.order_id` is a plain UU
 
 ## 9. AWS Deployment (planned)
 
+Think of it like this: the app is packed into a Docker container and handed to AWS to run. AWS takes care of starting it, keeping it alive, and scaling it up when traffic grows.
+
 ```mermaid
 graph TB
-    subgraph internet["Internet"]
-        Customer["👤 Customer"]
+    Customer["👤 Customer\nbrowses shop, pays"]
+
+    subgraph aws["Our app running on AWS"]
+        CDN["CloudFront + S3\n── serves checkout.html ──\nfast, cached near customer"]
+        ALB["Load Balancer\n── front door ──\nreceives every request"]
+        ECS["ECS Fargate\n── our Spring Boot app ──\nhandles catalog, cart,\norders, payments"]
+        RDS["PostgreSQL Database\n── RDS ──\nstores orders, customers,\npayments, inventory"]
+        Redis["Redis Cache\n── ElastiCache ──\ncaches product list\nso DB isn't hit every time"]
+        Secrets["Secrets Manager\nstores Unzer API key,\nDB password, JWT secret\n── never in code ──"]
+        Logs["CloudWatch\nlogs every request\nalerts if something breaks"]
     end
 
-    subgraph aws["AWS eu-central-1"]
-        subgraph public["Public subnet"]
-            ALB["Application Load Balancer\nHTTPS termination"]
-            CDN["CloudFront + S3\ncheckout.html"]
-        end
-        subgraph private["Private subnet"]
-            ECS["ECS Fargate\nSpring Boot app\nscales horizontally"]
-            RDS["RDS PostgreSQL\nMulti-AZ"]
-            Redis["ElastiCache Redis\nCatalog read cache"]
-        end
-        SM["Secrets Manager\nUnzer API key"]
-        CW["CloudWatch\nLogs + metrics"]
-    end
+    Unzer["💳 Unzer\ntakes the payment\nsends webhook when done"]
 
-    Unzer["Unzer\nexternal"]
-
-    Customer -->|"HTTPS"| CDN
-    Customer -->|"HTTPS"| ALB
-    ALB -->|"routes traffic"| ECS
-    ECS -->|"JDBC"| RDS
-    ECS -->|"cache reads"| Redis
-    ECS -->|"fetch secrets at startup"| SM
-    ECS -->|"logs + metrics"| CW
-    ECS -->|"authorize / charge"| Unzer
-    Unzer -->|"webhook POST"| ALB
+    Customer -->|"1 — opens checkout page"| CDN
+    Customer -->|"2 — browse / cart / checkout"| ALB
+    ALB -->|"3 — routes to app"| ECS
+    ECS -->|"4 — reads product cache"| Redis
+    ECS -->|"5 — saves order & payment"| RDS
+    ECS -->|"6 — reads secrets on startup"| Secrets
+    ECS -->|"7 — send logs"| Logs
+    ECS -->|"8 — initiate payment"| Unzer
+    Unzer -->|"9 — webhook: payment confirmed"| ALB
 ```
 
-**Scaling strategy — load concentrates in two very different places:**
+**What each piece does in plain English:**
 
-| Path | Characteristic | How to scale |
+| AWS Service | What it is | Why we use it |
 |---|---|---|
-| Catalog reads (`GET /api/products/**`) | High volume, read-only, cacheable | CloudFront CDN in front of API; Redis cache for product/variant queries; read replicas on RDS |
-| Checkout writes (`POST /checkout/**`) | Low volume, stateful, DB-heavy | Horizontal ECS task scaling behind ALB; connection pooling (HikariCP); optimistic locking avoids held row locks that would serialise writes |
-| Webhook events | Bursty, idempotent | Stateless handler — any ECS task can process any webhook; duplicate-safe via unique constraint |
+| **ECS Fargate** | Runs our Docker container | No servers to manage — just run the app |
+| **ALB** | Front door of the app | Receives all requests, spreads load across app copies |
+| **RDS PostgreSQL** | The database | Stores orders, customers, payments — auto-backed-up |
+| **ElastiCache Redis** | Fast memory cache | Product pages load fast without hitting the DB every time |
+| **Secrets Manager** | Password vault | Unzer API key and DB password stored safely — never in code |
+| **CloudFront + S3** | Serves static files | `checkout.html` delivered fast from nearest location worldwide |
+| **CloudWatch** | Logs and alerts | Alerts us if payment failure rate goes above 5% |
 
-- **Secrets:** Unzer private key in Secrets Manager only — never in code or `.env` files.
-- **CI/CD:** PR → tests on H2 → merge → Docker image pushed to ECR → rolling ECS deploy. Production requires a manual approval gate.
-- **Observability:** structured JSON logs with `orderId`/`paymentId` on every line; CloudWatch metrics for `payment.succeeded`, `payment.failed`, `stock.reservation.failed`; alarm if payment failure rate exceeds 5% or checkout P99 latency exceeds 2s.
+**Scaling — two different problems:**
+
+- **Product browsing** (`GET /api/products`) — millions of reads, same data. Solved by CloudFront cache + Redis. Most requests never reach the app.
+- **Checkout** (`POST /checkout`) — few requests but each writes to DB. Solved by running more ECS container copies behind the ALB.
+
+**CI/CD pipeline** (see `.github/workflows/ci-cd.yml`):
+1. PR opened → tests run automatically on H2 (no real DB needed)
+2. PR merged to main → Docker image built and pushed to ECR
+3. Manual approval click → ECS rolling deploy (new containers start before old ones stop, zero downtime)
+
+**Secrets:** Unzer private key, DB password, JWT secret — all stored in Secrets Manager. ECS pulls them at startup. They never appear in code, `.env` files, or the pipeline logs.
+
+**Observability:** Every log line includes `orderId` and `paymentId` so you can trace any order end-to-end. CloudWatch alerts fire if payment failure rate exceeds 5% or checkout takes longer than 2 seconds.
 
 ---
 
