@@ -314,15 +314,15 @@ Each module owns its tables exclusively. No module queries another module's tabl
 
 ## 7. Sync vs. Async
 
+**Sync** = "wait for the answer right now." **Async** = "do it in the background, no one is waiting."
+
 | Interaction | Style | Why |
 |---|---|---|
-| Customer → API (browse, cart, checkout) | **Synchronous REST** | Customer is waiting; latency matters; simple request/response |
-| API → Unzer (authorize / charge) | **Synchronous HTTPS** | We need the `paymentId` and `redirectUrl` immediately to respond to the customer |
-| Unzer → API (webhook) | **Asynchronous HTTP POST** | Unzer fires it independently; we process it and return 200 — the customer polls separately |
-| Browser polling `/checkout/status` | **Synchronous short-poll** | Simple; avoids WebSocket complexity for a one-time status check |
-| Expiry job (release stale reservations) | **Async scheduled** | Background concern; 60-second granularity is fine; no customer is waiting |
-
-**Why not a message queue (Kafka/SQS) between modules?** All modules are in one process — there is no network boundary to bridge. Adding a broker would introduce ordering guarantees, consumer groups, and dead-letter queues for a problem that a DB transaction already solves atomically. If modules are ever extracted into separate services, the `payment_event` table is already an outbox-style audit log that could feed a queue at that point.
+| Customer → API (browse, cart, checkout) | **Sync** | Customer is staring at the screen — answer immediately |
+| API → Unzer (authorize / charge) | **Sync** | We need the payment link back *now* to show the customer |
+| Unzer → API (webhook) | **Async** | Unzer sends it whenever it's ready; we just accept it and reply 200 |
+| Browser checking `/checkout/status` | **Sync (repeated)** | The page asks "done yet?" every few seconds — simple, no fancy live connection |
+| Expiry job (free stale stock) | **Async (scheduled)** | Runs every 60s in the background; nobody is waiting on it |
 
 ---
 
