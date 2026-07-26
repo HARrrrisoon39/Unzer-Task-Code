@@ -253,15 +253,13 @@ sequenceDiagram
 
 ### Payment methods
 
-All three implement the same `PaymentGateway` interface (`initiate` + `refund`). Adding a new method means writing one new class.
+All three implement the same `PaymentGateway` interface (`initiate` + `refund`)
 
 | Method | Flow | chargeId available at initiation? |
 |---|---|---|
 | **Credit Card** | `authorize()` → 3DS redirect → webhook | No (authorize flow, no charge yet) |
 | **Wero** | `charge()` → redirect → webhook | Yes |
 | **Open Banking** | `charge()` → redirect to bank → webhook | Yes |
-
-**Why confirm on the webhook, not the return URL?** The browser redirect can arrive before Unzer finishes processing. The webhook is the authoritative signal — the handler always re-fetches the real state from Unzer before acting.
 
 ---
 
