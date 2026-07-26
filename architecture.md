@@ -287,16 +287,12 @@ A background job every 60 seconds frees stock still `RESERVED` past its expiry (
 
 ### Idempotency and consistency
 
-Any step can fail on its own — Unzer times out, the DB fails mid-write, a webhook arrives twice. How each recovers:
+Any step can fail on its own
 
 | What can go wrong | How we handle it |
 |---|---|
 | Same webhook twice | Check if we've seen this event; if yes, skip and return 200 (DB unique rule is the backup) |
 | Webhook arrives before browser returns | Webhook sets order to PAID first; the return page just reads current status |
-| DB fails after payment succeeds | Unzer retries the webhook; idempotency key stops a double-charge; order finishes on retry |
-| Reservation expires before payment finishes | The 60-second job frees the stock; confirmed reservations are untouched |
-
-Every raw webhook is saved **before** processing — so if processing fails, we can replay it. That's our audit trail.
 
 ---
 
