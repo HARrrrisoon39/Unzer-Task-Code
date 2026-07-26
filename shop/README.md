@@ -30,13 +30,13 @@ ngrok http 8080
 ```
 
 **Step 2 — Start the app** (Terminal 2, replace keys and ngrok URL)
-```bash
+```powershell
 cd shop
-UNZER_PRIVATE_KEY=s-priv-xxx \
-UNZER_PUBLIC_KEY=s-pub-xxx \
-UNZER_WEBHOOK_URL=https://abc123.ngrok.io \
-UNZER_RETURN_URL_BASE=https://abc123.ngrok.io \
-./mvnw spring-boot:run
+$env:UNZER_PRIVATE_KEY="s-priv-xxx"
+$env:UNZER_PUBLIC_KEY="s-pub-xxx"
+$env:UNZER_WEBHOOK_URL="https://abc123.ngrok.io"
+$env:UNZER_RETURN_URL_BASE="https://abc123.ngrok.io"
+mvn spring-boot:run
 ```
 
 The app auto-registers the webhook with Unzer on startup. Open `http://localhost:8080/checkout.html` to demo.
