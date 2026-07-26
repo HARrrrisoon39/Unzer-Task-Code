@@ -210,9 +210,9 @@ stateDiagram-v2
   AWAITING_PAYMENT --> PAYMENT_FAILED : Webhook CANCELED
 ```
 
-Internally the order is first written as `CREATED`, then transitioned to `AWAITING_PAYMENT` within the same `/checkout/initiate` call once stock is reserved — both steps are recorded in `order_status_history`.
+The order starts as `CREATED`, then flips to `AWAITING_PAYMENT` once stock is reserved within the same `/checkout/initiate` call — both steps logged in `order_status_history`.
 
-Future states (`FULFILLING`, `SHIPPED`, `COMPLETED`, `CANCELLED`) are defined in the enum but not yet wired to any endpoint. `REFUNDED` is similar: `PaymentService.refund(...)` implements the PAID → REFUNDED transition, but it is not invoked by any controller, scheduler, or other caller, so the transition cannot currently be triggered at runtime.
+Other states (`FULFILLING`, `SHIPPED`, `COMPLETED`, `CANCELLED`) exist in the enum but aren't wired to any endpoint yet. `REFUNDED` has working code (`PaymentService.refund(...)`) but nothing calls it, so it can't be triggered at runtime.
 
 ### Request sequence (Credit Card example)
 
