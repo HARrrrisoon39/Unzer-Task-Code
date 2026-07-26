@@ -16,7 +16,7 @@ cd shop
 mvn spring-boot:run
 ```
 
-- Cart page: `http://localhost:8080/checkout.html`
+- Checkout page: `http://localhost:8080/checkout.html`
 - H2 console: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:shopdb`, user: `sa`, password: empty)
 
 ---
@@ -50,7 +50,7 @@ The app auto-loads `application-local.yml` and registers the webhook with Unzer 
 
 ## Demo Screenshots
 
-### 1. Checkout Page
+### 1. Cart Page
 ![Checkout Page](docs/images/1.png)
 
 ### 2. Payment Flow
