@@ -51,7 +51,7 @@ graph TB
 
     subgraph shop["Shop System"]
         API["Spring Boot API\n(Java 21)\nAll business logic:\ncatalog · cart · inventory\norder · payment · customer · webhook"]
-        DB["PostgreSQL\n(RDS / H2 dev)\nSingle shared database\nsingle shared schema\n(modules separated by package)"]
+        DB["SQL\n(H2 dev)"]
     end
 
     Unzer["💳 Unzer\nPayment gateway"]
@@ -62,7 +62,6 @@ graph TB
     Unzer -->|"Webhook events (HTTPS POST /api/webhooks/unzer)"| API
 ```
 
-**Why a single database?** All modules live in one process and share one PostgreSQL instance. Separate databases per module would require distributed transactions (two-phase commit or sagas) to keep order + inventory + payment consistent — significant complexity for no real benefit at this scale. Modules reference each other only by ID, never by JPA relationship joins across module boundaries.
 
 ---
 
