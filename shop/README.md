@@ -16,7 +16,7 @@ cd shop
 mvn spring-boot:run
 ```
 
-- Checkout page: `http://localhost:8080/checkout.html`
+- Cart page: `http://localhost:8080/checkout.html`
 - H2 console: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:shopdb`, user: `sa`, password: empty)
 
 ---
