@@ -29,7 +29,7 @@ mvn spring-boot:run
 
 ---
 
-## Setup (full payment flow)
+## Setup
 
 **Step 1 — Start ngrok** (Terminal 1, leave it running)
 ```bash
