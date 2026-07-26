@@ -7,36 +7,6 @@ Spring Boot backend for an online shop with Unzer payment integration (Credit Ca
 
 ---
 
-## Run Locally 
-
-Requires Java 21 and Maven. Uses H2 in-memory DB — no Docker needed.
-
-```bash
-cd shop
-mvn spring-boot:run
-```
-
-- Checkout page: `http://localhost:8080/checkout.html`
-- H2 console: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:shopdb`, user: `sa`, password: empty)
-
-### H2 In-Memory Database
-
-Open `http://localhost:8080/h2-console` while the app is running. Connect with:
-
-| Field | Value |
-|---|---|
-| JDBC URL | `jdbc:h2:mem:shopdb` |
-| User Name | `sa` |
-| Password | *(leave empty)* |
-
-The console shows all tables created by Flyway migrations:
-
-![H2 Console](docs/images/H2Local%20DB.png)
-
-Tables present: `CART`, `CART_ITEM`, `CUSTOMER`, `INVENTORY`, `ORDER_LINE`, `ORDER_STATUS_HISTORY`, `PAYMENT`, `PAYMENT_EVENT`, `PRODUCT`, `PRODUCT_VARIANT`, `RESERVATION`, `SHOP_ORDER`, `flyway_schema_history`.
-
----
-
 ## Setup
 
 **Step 1 — Start ngrok** (Terminal 1, leave it running)
@@ -64,14 +34,17 @@ The app auto-loads `application-local.yml` and registers the webhook with Unzer 
 
 ---
 
-## CI/CD Pipeline
+## Run Locally
 
-Every push to `main` triggers the `ci-cd.yml` GitHub Actions workflow with two sequential jobs:
+Requires Java 21 and Maven. Uses H2 in-memory DB — no Docker needed.
 
-1. **Test (H2)** — runs `mvn test` against the in-memory H2 database (~21 s). Must pass before deployment starts.
-2. **Build & Deploy to ECS** — builds the Docker image, pushes to ECR, and deploys to the `production` ECS service (~15 s).
+```bash
+cd shop
+mvn spring-boot:run
+```
 
-![CI/CD Pipeline](docs/images/CD.png)
+- Checkout page: `http://localhost:8080/checkout.html`
+- H2 console: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:shopdb`, user: `sa`, password: empty)
 
 ---
 
@@ -91,7 +64,6 @@ The collection includes 8 pre-built requests (Register → Login → Browse Prod
 
 ---
 
-
 ## Sandbox Test Cards
 
 | Card | Number | Expiry | CVC |
@@ -100,3 +72,32 @@ The collection includes 8 pre-built requests (Register → Login → Browse Prod
 | Mastercard | `5188340000000016` | `12/2025` | `123` |
 
 Never use real card data. Sandbox keys (`s-priv-`) never reach real networks.
+
+---
+
+## H2 In-Memory Database
+
+Open `http://localhost:8080/h2-console` while the app is running. Connect with:
+
+| Field | Value |
+|---|---|
+| JDBC URL | `jdbc:h2:mem:shopdb` |
+| User Name | `sa` |
+| Password | *(leave empty)* |
+
+The console shows all tables created by Flyway migrations:
+
+![H2 Console](docs/images/H2Local%20DB.png)
+
+Tables present: `CART`, `CART_ITEM`, `CUSTOMER`, `INVENTORY`, `ORDER_LINE`, `ORDER_STATUS_HISTORY`, `PAYMENT`, `PAYMENT_EVENT`, `PRODUCT`, `PRODUCT_VARIANT`, `RESERVATION`, `SHOP_ORDER`, `flyway_schema_history`.
+
+---
+
+## CI/CD Pipeline
+
+Every push to `main` triggers the `ci-cd.yml` GitHub Actions workflow with two sequential jobs:
+
+1. **Test (H2)** — runs `mvn test` against the in-memory H2 database (~21 s). Must pass before deployment starts.
+2. **Build & Deploy to ECS** — builds the Docker image, pushes to ECR, and deploys to the `production` ECS service (~15 s).
+
+![CI/CD Pipeline](docs/images/CD.png)
