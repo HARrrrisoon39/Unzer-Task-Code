@@ -7,6 +7,20 @@ Spring Boot backend for an online shop with Unzer payment integration (Credit Ca
 
 ---
 
+## Run Locally
+
+Requires Java 21 and Maven. Uses H2 in-memory DB — no Docker needed.
+
+```bash
+cd shop
+mvn spring-boot:run
+```
+
+- Checkout page: `http://localhost:8080/checkout.html`
+- H2 console: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:shopdb`, user: `sa`, password: empty)
+
+---
+
 ## Setup
 
 **Step 1 — Start ngrok** (Terminal 1, leave it running)
@@ -34,20 +48,6 @@ The app auto-loads `application-local.yml` and registers the webhook with Unzer 
 
 ---
 
-## Run Locally
-
-Requires Java 21 and Maven. Uses H2 in-memory DB — no Docker needed.
-
-```bash
-cd shop
-mvn spring-boot:run
-```
-
-- Checkout page: `http://localhost:8080/checkout.html`
-- H2 console: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:shopdb`, user: `sa`, password: empty)
-
----
-
 ## Demo Screenshots
 
 ![Checkout Page](docs/images/1.png)
@@ -62,20 +62,7 @@ Open the Postman collection to test all endpoints:
 
 The collection includes 8 pre-built requests (Register → Login → Browse Products → Add to Cart → View Cart → Initiate Checkout → Pay with Credit Card → Simulate Webhook) with the `Unzer Shop - Local (ngrok)` environment pre-configured.
 
----
-
-## Sandbox Test Cards
-
-| Card | Number | Expiry | CVC |
-|---|---|---|---|
-| Visa | `4444333322221111` | `03/99` | `123` |
-| Mastercard | `5188340000000016` | `12/2025` | `123` |
-
-Never use real card data. Sandbox keys (`s-priv-`) never reach real networks.
-
----
-
-## H2 In-Memory Database
+### H2 In-Memory Database
 
 Open `http://localhost:8080/h2-console` while the app is running. Connect with:
 
@@ -91,9 +78,7 @@ The console shows all tables created by Flyway migrations:
 
 Tables present: `CART`, `CART_ITEM`, `CUSTOMER`, `INVENTORY`, `ORDER_LINE`, `ORDER_STATUS_HISTORY`, `PAYMENT`, `PAYMENT_EVENT`, `PRODUCT`, `PRODUCT_VARIANT`, `RESERVATION`, `SHOP_ORDER`, `flyway_schema_history`.
 
----
-
-## CI/CD Pipeline
+### CI/CD Pipeline
 
 Every push to `main` triggers the `ci-cd.yml` GitHub Actions workflow with two sequential jobs:
 
@@ -101,3 +86,14 @@ Every push to `main` triggers the `ci-cd.yml` GitHub Actions workflow with two s
 2. **Build & Deploy to ECS** — builds the Docker image, pushes to ECR, and deploys to the `production` ECS service (~15 s).
 
 ![CI/CD Pipeline](docs/images/CD.png)
+
+---
+
+## Sandbox Test Cards
+
+| Card | Number | Expiry | CVC |
+|---|---|---|---|
+| Visa | `4444333322221111` | `03/99` | `123` |
+| Mastercard | `5188340000000016` | `12/2025` | `123` |
+
+Never use real card data. Sandbox keys (`s-priv-`) never reach real networks.
