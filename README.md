@@ -1,4 +1,4 @@
-# Unzer E-Commerce Shop — Take-Home Assignment
+# Unzer E-Commerce Shop
 
 See [`shop/README.md`](shop/README.md) for setup and run instructions.
 

@@ -1,14 +1,4 @@
-# E-Commerce Shop — Architecture
-
-## 1. What This Is
-
-A Spring Boot backend for an online shop. Customers can browse products, add items to a cart, and pay using Unzer (Credit Card, Wero, or Open Banking).
-
-**In scope:** product catalog, cart, stock reservation, order lifecycle, Unzer payment, webhook processing.  
-**Out of scope:** email notifications, admin UI, multi-currency (EUR only).  
-**Guest checkout is allowed** — no account required, cart is keyed by a session token.
-
-### In plain English
+# Unzer E-Commerce Shop — Architecture
 
 A customer browses products, adds them to a cart, and checks out. At checkout the system **reserves the stock** (so no one else can grab the last unit), creates an **order**, and asks **Unzer** to take the payment. The customer pays (card details go straight to Unzer, never to us). Unzer then sends a **webhook** back to confirm the money arrived — only then does the order become `PAID` and the reserved stock is permanently deducted. If payment fails or times out, the reserved stock is released back.
 
