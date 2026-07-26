@@ -372,24 +372,14 @@ graph TB
     Customer -->|"11 — poll GET /api/checkout/status"| ALB
 ```
 
-**What each piece does in plain English:**
-
-| AWS Service | What it is | Why we use it |
-|---|---|---|
-| **ECS Fargate** | Runs our Docker container | No servers to manage — just run the app |
-| **ALB** | Front door of the app | Receives all requests, spreads load across app copies |
-| **RDS PostgreSQL** | The database | Stores orders, customers, payments — auto-backed-up |
-| **ElastiCache Redis** | Fast memory cache | Product pages load fast without hitting the DB every time |
-| **Secrets Manager** | Password vault | Unzer API key and DB password stored safely — never in code |
-| **CloudFront + S3** | Serves static files | `checkout.html` delivered fast from nearest location worldwide |
-| **CloudWatch** | Logs and alerts | Alerts us if payment failure rate goes above 5% |
-
 **Scaling — two different problems:**
 
 - **Browsing** (`GET /api/products`) — huge traffic, same data → CloudFront + Redis cache absorb it; most requests never hit the app.
 - **Checkout** (`POST /checkout`) — fewer requests, each writes to DB → run more ECS copies behind the ALB.
 
 **CI/CD** (`.github/workflows/ci-cd.yml`): push → tests run on H2 → build Docker image → push to ECR → approve → ECS rolling deploy (zero downtime).
+
+**ECS task definition** (`infra/ecs-task-definition.json`): defines how the container runs on Fargate — CPU/memory, port, CloudWatch logging, health check, and the Secrets Manager references that get injected at startup.
 
 **Secrets:** Unzer key, DB password, JWT secret live in Secrets Manager; ECS pulls them at startup — never in code or logs.
 
