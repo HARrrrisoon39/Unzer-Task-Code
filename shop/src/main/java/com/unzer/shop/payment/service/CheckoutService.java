@@ -3,6 +3,7 @@ package com.unzer.shop.payment.service;
 import com.unzer.shop.cart.service.CartService;
 import com.unzer.shop.inventory.service.InventoryService;
 import com.unzer.shop.order.model.Order;
+import com.unzer.shop.order.model.OrderStatus;
 import com.unzer.shop.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,9 @@ public class CheckoutService {
 
         Order order = orderService.createOrder(cart, address, null);
         reservationIds.forEach(rId -> inventoryService.linkReservationToOrder(rId, order.getId()));
-        return order;
+
+        // Move CREATED -> AWAITING_PAYMENT and record it in the audit trail
+        return orderService.transition(order.getId(), OrderStatus.AWAITING_PAYMENT,
+                "Checkout initiated — stock reserved, awaiting payment");
     }
 }
