@@ -20,6 +20,6 @@
 
 - **Setup & run:** [`shop/README.md`](https://github.com/HARrrrisoon39/Unzer-Task-Code/tree/main/shop)
 - **Architecture deep-dive:** [`architecture.md`](architecture.md)
-- **Source code:** [github.com/HARrrrisoon39/Unzer-Task-Code](https://github.com/HARrrrisoon39/Unzer-Task-Code)
+- **Source code:** [github.com/HARrrrisoon39/Unzer-Task-Code](https://github.com/HARrrrisoon39/Unzer-Task-Code/tree/main/shop)
 
 ---
