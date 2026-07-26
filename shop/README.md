@@ -15,7 +15,7 @@ Spring Boot backend for an online shop with Unzer payment integration (Credit Ca
 
 ---
 
-## Run Locally (no payments — just verify the app starts)
+## Run Locally 
 
 Requires Java 21 and Maven. Uses H2 in-memory DB — no Docker needed.
 
