@@ -1,0 +1,117 @@
+{
+  "info": {
+    "name": "Unzer Shop API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Register",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"secret123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "2. Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"secret123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "3. Browse Products",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api", "products"] }
+      }
+    },
+    {
+      "name": "4. Add to Cart",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Session-Token", "value": "my-session-123" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/cart/items", "host": ["{{baseUrl}}"], "path": ["api", "cart", "items"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"variantId\": \"bbbbbbbb-0000-0000-0000-000000000001\",\n  \"sku\": \"WIDGET-001-STD\",\n  \"name\": \"Premium Widget Standard\",\n  \"quantity\": 1,\n  \"unitPrice\": 29.99,\n  \"currency\": \"EUR\"\n}"
+        }
+      }
+    },
+    {
+      "name": "5. View Cart",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-Session-Token", "value": "my-session-123" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/cart", "host": ["{{baseUrl}}"], "path": ["api", "cart"] }
+      }
+    },
+    {
+      "name": "6. Initiate Checkout",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Session-Token", "value": "my-session-123" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/checkout/initiate", "host": ["{{baseUrl}}"], "path": ["api", "checkout", "initiate"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"street\": \"Musterstrasse 1\",\n  \"city\": \"Berlin\",\n  \"country\": \"DE\",\n  \"zip\": \"10115\"\n}"
+        }
+      }
+    },
+    {
+      "name": "7. Pay with Credit Card",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/checkout/pay", "host": ["{{baseUrl}}"], "path": ["api", "checkout", "pay"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"REPLACE_WITH_ORDER_ID\",\n  \"method\": \"CARD\",\n  \"typeId\": \"REPLACE_WITH_TYPE_ID\"\n}"
+        }
+      }
+    },
+    {
+      "name": "8. Simulate Webhook",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/webhooks/unzer", "host": ["{{baseUrl}}"], "path": ["api", "webhooks", "unzer"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"payment.completed\",\n  \"publicKey\": \"s-pub-xxx\",\n  \"retrieveUrl\": \"https://sbx-api.unzer.com/v1/payments/s-pay-1\",\n  \"paymentId\": \"s-pay-1\"\n}"
+        }
+      }
+    },
+    {
+      "name": "9. Check Order Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/checkout/status?orderId=REPLACE_WITH_ORDER_ID",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "checkout", "status"],
+          "query": [{ "key": "orderId", "value": "REPLACE_WITH_ORDER_ID" }]
+        }
+      }
+    }
+  ]
+}
