@@ -36,22 +36,18 @@ public class OrderService {
                 .zip(address.zip())
                 .build();
 
-        // Save first to get the generated ID, then add lines referencing that ID
+        // Save first to get the generated ID, then add lines linked to the order
         Order saved = orderRepository.save(order);
 
-        List<OrderLine> lines = cart.getItems().stream()
-                .map(i -> OrderLine.builder()
-                        .orderId(saved.getId())
-                        .variantId(i.getVariantId())
-                        .sku(i.getSku())
-                        .name(i.getName())
-                        .quantity(i.getQuantity())
-                        .unitPrice(i.getUnitPrice())
-                        .currency(i.getCurrency())
-                        .build())
-                .toList();
+        cart.getItems().forEach(i -> saved.addLine(OrderLine.builder()
+                .variantId(i.getVariantId())
+                .sku(i.getSku())
+                .name(i.getName())
+                .quantity(i.getQuantity())
+                .unitPrice(i.getUnitPrice())
+                .currency(i.getCurrency())
+                .build()));
 
-        saved.getLines().addAll(lines);
         Order result = orderRepository.save(saved);
         log.info("Order {} created, total={} EUR", result.getId(), total);
         return result;

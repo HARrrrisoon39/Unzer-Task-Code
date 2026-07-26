@@ -44,15 +44,19 @@ public class Order {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "order_id")
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderLine> lines = new ArrayList<>();
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "order_id")
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderStatusHistory> history = new ArrayList<>();
+
+    /** Adds a line and maintains both sides of the relationship. */
+    public void addLine(OrderLine line) {
+        line.setOrder(this);
+        lines.add(line);
+    }
 
     @PrePersist
     void prePersist() {
@@ -67,12 +71,13 @@ public class Order {
     public void transition(OrderStatus next, String reason) {
         OrderStatus previous = this.status;
         this.status = next;
-        this.history.add(OrderStatusHistory.builder()
-                .orderId(this.id)
+        OrderStatusHistory entry = OrderStatusHistory.builder()
                 .fromStatus(previous)
                 .toStatus(next)
                 .reason(reason)
                 .occurredAt(Instant.now())
-                .build());
+                .build();
+        entry.setOrder(this);
+        this.history.add(entry);
     }
 }

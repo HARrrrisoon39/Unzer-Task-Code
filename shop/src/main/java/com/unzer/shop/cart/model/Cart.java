@@ -29,10 +29,15 @@ public class Cart {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    @JoinColumn(name = "cart_id")
+    @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
     private List<CartItem> items = new ArrayList<>();
+
+    /** Adds an item and maintains both sides of the relationship. */
+    public void addItem(CartItem item) {
+        item.setCart(this);
+        items.add(item);
+    }
 
     @PrePersist @PreUpdate
     void touch() { updatedAt = Instant.now(); }

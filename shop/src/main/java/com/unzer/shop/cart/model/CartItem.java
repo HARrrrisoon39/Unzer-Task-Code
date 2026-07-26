@@ -1,5 +1,6 @@
 package com.unzer.shop.cart.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -11,14 +12,18 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = "cart")
+@EqualsAndHashCode(exclude = "cart")
 public class CartItem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "cart_id", nullable = false, insertable = false, updatable = false)
-    private UUID cartId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cart_id", nullable = false)
+    @JsonIgnore
+    private Cart cart;
 
     @Column(name = "variant_id", nullable = false)
     private UUID variantId;

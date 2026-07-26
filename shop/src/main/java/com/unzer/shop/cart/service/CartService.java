@@ -32,8 +32,7 @@ public class CartService {
                 .findFirst()
                 .ifPresentOrElse(
                         existing -> existing.setQuantity(existing.getQuantity() + quantity),
-                        () -> cart.getItems().add(CartItem.builder()
-                                .cartId(cart.getId())
+                        () -> cart.addItem(CartItem.builder()
                                 .variantId(variantId)
                                 .sku(sku)
                                 .name(name)
