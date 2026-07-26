@@ -8,7 +8,10 @@ import org.springframework.test.context.TestPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
-@TestPropertySource(properties = "spring.flyway.enabled=false")
+@TestPropertySource(properties = {
+    "spring.flyway.enabled=false",
+    "spring.jpa.hibernate.ddl-auto=create-drop"
+})
 class ProductRepositoryTest {
 
     @Autowired
