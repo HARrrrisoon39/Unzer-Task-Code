@@ -74,17 +74,6 @@ curl http://localhost:8080/api/checkout/status?orderId=<uuid>
 
 ---
 
-## Tests
-
-```powershell
-cd shop
-mvn test
-```
-
-Uses H2 — no external services required.
-
----
-
 ## What is Real vs. Stubbed
 
 | Feature | Status |
