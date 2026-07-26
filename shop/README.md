@@ -19,6 +19,22 @@ mvn spring-boot:run
 - Checkout page: `http://localhost:8080/checkout.html`
 - H2 console: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:shopdb`, user: `sa`, password: empty)
 
+### H2 In-Memory Database
+
+Open `http://localhost:8080/h2-console` while the app is running. Connect with:
+
+| Field | Value |
+|---|---|
+| JDBC URL | `jdbc:h2:mem:shopdb` |
+| User Name | `sa` |
+| Password | *(leave empty)* |
+
+The console shows all tables created by Flyway migrations:
+
+![H2 Console](docs/images/H2Local%20DB.png)
+
+Tables present: `CART`, `CART_ITEM`, `CUSTOMER`, `INVENTORY`, `ORDER_LINE`, `ORDER_STATUS_HISTORY`, `PAYMENT`, `PAYMENT_EVENT`, `PRODUCT`, `PRODUCT_VARIANT`, `RESERVATION`, `SHOP_ORDER`, `flyway_schema_history`.
+
 ---
 
 ## Setup
@@ -45,6 +61,17 @@ mvn spring-boot:run
 ```
 
 The app auto-loads `application-local.yml` and registers the webhook with Unzer on startup. Open `http://localhost:8080/checkout.html` to demo.
+
+---
+
+## CI/CD Pipeline
+
+Every push to `main` triggers the `ci-cd.yml` GitHub Actions workflow with two sequential jobs:
+
+1. **Test (H2)** — runs `mvn test` against the in-memory H2 database (~21 s). Must pass before deployment starts.
+2. **Build & Deploy to ECS** — builds the Docker image, pushes to ECR, and deploys to the `production` ECS service (~15 s).
+
+![CI/CD Pipeline](docs/images/CD.png)
 
 ---
 
