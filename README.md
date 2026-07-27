@@ -18,7 +18,6 @@
 
 ## Quick links
 - **Architecture deep-dive:** [`architecture.md`](architecture.md)
-- **Setup & run:** [`shop/README.md`](https://github.com/HARrrrisoon39/Unzer-Task-Code/tree/main/shop)
 - **Source code:** [github.com/HARrrrisoon39/Unzer-Task-Code](https://github.com/HARrrrisoon39/Unzer-Task-Code/tree/main/shop)
 
 
